@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+title: "V4FinBench: Benchmarking Tabular Foundation Models, LLMs, and Standard Methods on Corporate Bankruptcy Prediction"
+message: "If you use V4FinBench, please cite the accompanying paper."
+type: dataset
+authors:
+  - family-names: Kostrzewa
+    given-names: Marcin
+  - family-names: Tomczak
+    given-names: Sebastian
+  - family-names: Furman
+    given-names: Roman
+  - family-names: Poberezhna
+    given-names: Anna
+  - family-names: Furgała
+    given-names: Michał
+  - family-names: Farganus
+    given-names: Julia
+  - family-names: Furman
+    given-names: Oleksii
+  - family-names: Zięba
+    given-names: Maciej
+repository-code: "https://github.com/genwro-ai/V4FinBench"
+url: "https://www.kaggle.com/datasets/sebastiantomczak10/v4-group-corporate-bankruptcy/data"
+date-released: 2026-05-06
+license: CC BY 4.0

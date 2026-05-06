@@ -216,3 +216,17 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# V4FinBench local data and generated artifacts
+data/raw/*
+data/processed/*
+data/folds/*
+results/generated/*
+*.parquet
+*.joblib
+*.pt
+*.ckpt
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/folds/.gitkeep
+!results/generated/.gitkeep

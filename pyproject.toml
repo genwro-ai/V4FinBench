@@ -1,0 +1,59 @@
+[project]
+name = "v4finbench"
+version = "0.1.0"
+description = "Reproducibility code for the V4FinBench corporate financial distress benchmark."
+readme = "README.md"
+requires-python = ">=3.10,<3.13"
+dependencies = [
+    "catboost>=1.2.8",
+    "fastparquet>=2024.11.0",
+    "imbalanced-learn>=0.14.0",
+    "joblib>=1.4.2",
+    "lightgbm>=4.6.0",
+    "numba>=0.60.0",
+    "numpy>=1.26,<2.0",
+    "pandas>=2.2.0",
+    "pyarrow>=17.0.0",
+    "pyyaml>=6.0.2",
+    "scikit-learn>=1.6.1",
+    "tqdm>=4.67.1",
+    "xgboost>=2.1.4",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "ruff>=0.8.0",
+]
+tabpfn = [
+    "torch>=2.3.0",
+    "torchvision>=0.18.0",
+    "tabpfn==6.0.6",
+    "tabpfn-common-utils==0.2.10",
+    "tabpfn-extensions==0.2.2",
+]
+kaggle = [
+    "kagglehub>=0.3.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/v4finbench"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+exclude = [
+    "economic-data",
+    "financial-distress-foundational-models",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
