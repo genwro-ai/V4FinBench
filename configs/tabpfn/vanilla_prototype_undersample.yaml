@@ -1,0 +1,7 @@
+model: tabpfn
+mode: vanilla
+sampling_strategy: prototype_undersampling
+random_seed: 42
+n_context_samples: 10000
+minority_to_majority_ratio: 0.3
+model_path: null

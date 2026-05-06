@@ -1,0 +1,35 @@
+model_name: meta-llama/Meta-Llama-3-8B
+train_size: 20000
+test_size: 100000
+min_positive_ratio_train: 0.10
+min_positive_ratio_test: 0.10
+seed: 42
+target_col: main_label
+system_prompt: |-
+  You are a bankruptcy prediction model.
+  Based on structured company and financial data, predict whether the company will go bankrupt {horizon_description}.
+  Respond with only one word: YES or NO.
+max_seq_length: 2048
+per_device_train_batch_size: 1
+per_device_eval_batch_size: 1
+gradient_accumulation_steps: 8
+learning_rate: 0.0002
+num_train_epochs: 1.0
+logging_steps: 10
+eval_steps: 200
+save_steps: 200
+warmup_ratio: 0.03
+weight_decay: 0.0
+val_split: 0.02
+use_bf16: true
+use_4bit: true
+device_map: auto
+optim: paged_adamw_8bit
+target_modules:
+  - q_proj
+  - k_proj
+  - v_proj
+  - o_proj
+  - gate_proj
+  - up_proj
+  - down_proj

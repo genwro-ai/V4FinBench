@@ -1,0 +1,20 @@
+kaggle:
+  dataset: sebastiantomczak10/v4-group-corporate-bankruptcy
+  url: https://www.kaggle.com/datasets/sebastiantomczak10/v4-group-corporate-bankruptcy/data
+  license: CC BY 4.0
+
+files:
+  unlabeled: company_years.parquet
+  horizons:
+    h0: company_years_h1.parquet
+    h1: company_years_h2.parquet
+    h2: company_years_h3.parquet
+    h3: company_years_h4.parquet
+    h4: company_years_h5.parquet
+    h5: company_years_h6.parquet
+
+folds:
+  n_splits: 5
+  random_state: 42
+  country_col: country
+  group_col: company
