@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from v4finbench.models.tabpfn import tabpfn_config_from_mapping
 
 

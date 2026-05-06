@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import pandas as pd
 
 from v4finbench.data.schema import HORIZON_FILES, UNLABELED_FILE
@@ -23,4 +21,3 @@ def test_summarize_dataset_dir(tmp_path) -> None:
     assert horizon["n_rows"] == 3
     assert horizon["positives"] == 1
     assert horizon["positive_rate"] == 1 / 3
-

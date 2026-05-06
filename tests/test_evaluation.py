@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import numpy as np
 
 from v4finbench.evaluation.metrics import binary_classification_metrics

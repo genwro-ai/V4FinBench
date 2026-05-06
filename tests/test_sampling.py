@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import numpy as np
 
 from v4finbench.sampling.prototypes import closest_points_to_centers, create_prototypes
@@ -65,4 +63,3 @@ def test_no_sampling_returns_inputs_unchanged() -> None:
 
     np.testing.assert_array_equal(X_sampled, X)
     np.testing.assert_array_equal(y_sampled, y)
-

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import pandas as pd
 
 from v4finbench.data.labels import create_horizon_labels
@@ -76,4 +74,3 @@ def test_final_2021_report_is_not_labeled_positive() -> None:
 
     assert open_company["year"].tolist() == [2020]
     assert open_company["main_label"].tolist() == [0]
-

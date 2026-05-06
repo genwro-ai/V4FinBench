@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from v4finbench.models.tabpfn_finetune import (
     TabPFNFinetuneEpochResult,
     finetune_config_from_mapping,
@@ -75,4 +73,3 @@ def test_finetune_result_to_row_flattens_metrics() -> None:
     assert row["epoch"] == 3
     assert row["f1"] == 0.3
     assert row["roc_auc"] == 0.9
-
