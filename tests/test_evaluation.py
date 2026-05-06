@@ -35,4 +35,3 @@ def test_evaluate_with_validation_threshold() -> None:
 
     assert result.threshold == 0.8
     assert result.metrics["f1"] == 1.0
-

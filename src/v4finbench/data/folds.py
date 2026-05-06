@@ -150,8 +150,7 @@ def build_fold_metadata(
 
 def _fold_sizes(fold_assignments: np.ndarray, n_splits: int) -> dict[str, int]:
     return {
-        str(fold): int((fold_assignments == fold).sum())
-        for fold in range(n_splits)
+        str(fold): int((fold_assignments == fold).sum()) for fold in range(n_splits)
     }
 
 

@@ -157,7 +157,11 @@ def subsample_indices(
     max_samples: int | None,
     random_state: int,
 ) -> np.ndarray:
-    if max_samples is None or max_samples <= 0 or len(indices) <= max_samples:
+    if max_samples is None:
+        return indices
+    if max_samples <= 0:
+        raise ValueError("max_samples must be positive or None.")
+    if len(indices) <= max_samples:
         return indices
     rng = np.random.default_rng(random_state)
     selected = rng.choice(len(indices), size=max_samples, replace=False)

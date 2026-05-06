@@ -12,6 +12,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import ParameterGrid, ParameterSampler
 from sklearn.neural_network import MLPClassifier
+from tqdm.auto import tqdm
 from xgboost import XGBClassifier
 
 from v4finbench.data.preprocessing import (
@@ -54,6 +55,7 @@ def train_evaluate_baseline(
     random_state: int = 42,
     max_candidates: int | None = None,
     output_dir: str | Path | None = None,
+    progress: bool = False,
 ) -> BaselineRunResult:
     prepared = split_features_target(df, target_col=target_col)
     X_train_raw = prepared.X.iloc[train_idx]
@@ -74,7 +76,15 @@ def train_evaluate_baseline(
     best_threshold = 0.5
     best_validation_f1 = -np.inf
 
-    for params in iter_param_candidates(param_grid, max_candidates, random_state):
+    candidates = iter_param_candidates(param_grid, max_candidates, random_state)
+    if progress:
+        candidates = tqdm(
+            candidates,
+            desc=f"{model_name} h={horizon} fold={fold} candidates",
+            leave=False,
+        )
+
+    for params in candidates:
         model = make_baseline_model(model_name, params, random_state)
         model.fit(X_train, y_train)
         val_score = predict_positive_score(model, X_val)

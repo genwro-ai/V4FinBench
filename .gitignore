@@ -221,7 +221,12 @@ __marimo__/
 data/raw/*
 data/processed/*
 data/folds/*
+data/llama/*
+data/llama_smoke/*
 results/generated/*
+economic-data/
+financial-distress-foundational-models/
+Foundation Finetuning (5).pdf
 *.parquet
 *.joblib
 *.pt
@@ -229,4 +234,6 @@ results/generated/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
 !data/folds/.gitkeep
+!data/llama/.gitkeep
+!data/llama_smoke/.gitkeep
 !results/generated/.gitkeep

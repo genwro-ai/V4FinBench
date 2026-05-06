@@ -57,7 +57,8 @@ The repository should make the following reproducible from public artifacts:
 3. generating deterministic train/validation/test folds,
 4. running the standard tabular baselines,
 5. running TabPFN fine-tuning and evaluation,
-6. aggregating results into paper-style tables.
+6. running the separate Llama-3-8B QLoRA experiment,
+7. aggregating results into paper-style tables.
 
 The original EMIS reconstruction is documented as data provenance only. The raw EMIS source files are not shared, so scripts for raw Excel ingestion should not be part of the required reproduction path.
 
@@ -97,7 +98,9 @@ The standard tabular approaches should come from the `economic-data` implementat
 
 TabPFN fine-tuning should come from the foundation-model code, but with hard-coded cluster paths removed and the data/fold paths made configurable.
 
-The old Llama evaluation code from `economic-data` should be discarded. Llama-3-8B QLoRA fine-tuning is a separate experiment with a separate setup, as described in the paper, and can be added later under a separate `llama/` or `experiments/llama/` path.
+The old Llama evaluation code from `economic-data` is not used. Llama-3-8B
+QLoRA fine-tuning is implemented as a separate experiment under
+`src/v4finbench/llama`, `configs/llama`, and `scripts/llama_*`.
 
 ## Repository Structure
 
@@ -109,6 +112,7 @@ V4FinBench/
 ├── configs/
 │   ├── data.yaml
 │   ├── baselines/
+│   ├── llama/
 │   └── tabpfn/
 ├── data/
 │   ├── raw/
@@ -126,6 +130,10 @@ V4FinBench/
 │   ├── build_labels.py
 │   ├── build_folds.py
 │   ├── finetune_tabpfn.py
+│   ├── llama_eval.py
+│   ├── llama_prepare_data.py
+│   ├── llama_threshold.py
+│   ├── llama_train_qlora.py
 │   ├── reproduce_*.sh
 │   ├── run_baselines.py
 │   ├── run_tabpfn.py
@@ -142,6 +150,11 @@ V4FinBench/
 │       │   ├── metrics.py
 │       │   ├── thresholds.py
 │       │   └── protocol.py
+│       ├── llama/
+│       │   ├── formatting.py
+│       │   ├── inference.py
+│       │   ├── metrics.py
+│       │   └── sampling.py
 │       ├── models/
 │       │   ├── baselines.py
 │       │   ├── tabpfn.py
@@ -235,4 +248,38 @@ uv run python scripts/aggregate_finetune_best.py \
   --root results/generated/tabpfn_finetune \
   --out results/generated/tabpfn_finetune/best_epochs.csv \
   --summary results/generated/tabpfn_finetune/summary.csv
+```
+
+Prepare the separate Llama QLoRA experiment data:
+
+```bash
+uv run python scripts/llama_prepare_data.py \
+  --config configs/llama/qlora_llama3_8b.yaml \
+  --data-dir data/raw \
+  --out data/llama \
+  --horizon 0
+```
+
+The Llama system prompt is configurable in `configs/llama/qlora_llama3_8b.yaml`
+or via `--system-prompt` / `--system-prompt-file`. The default asks whether a
+company will go bankrupt within `{horizon_years}` year(s), not whether it will
+file a legal bankruptcy case.
+
+Train and evaluate a Llama adapter. This path requires GPU infrastructure and
+the optional Llama dependencies. Train one separate adapter per horizon dataset;
+do not train one shared adapter across all six horizons.
+
+```bash
+uv sync --extra llama
+uv run --extra llama python scripts/llama_train_qlora.py \
+  --config configs/llama/qlora_llama3_8b.yaml \
+  --train-file data/llama/llama_h0_train.csv \
+  --output-dir results/generated/llama/h0_adapter
+
+uv run --extra llama python scripts/llama_eval.py \
+  --model-name meta-llama/Meta-Llama-3-8B \
+  --adapter-path results/generated/llama/h0_adapter \
+  --test-file data/llama/llama_h0_test.csv \
+  --out results/generated/llama/h0_predictions.csv \
+  --compute-yes-no-probs
 ```

@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import pytest
 
 from v4finbench.models.tabpfn import (
     TabPFNRunConfig,
@@ -38,6 +39,14 @@ def test_subsample_indices_is_deterministic() -> None:
 
     np.testing.assert_array_equal(first, second)
     assert len(first) == 5
+
+
+def test_subsample_indices_rejects_non_positive_max_samples() -> None:
+    with pytest.raises(ValueError, match="max_samples must be positive"):
+        subsample_indices(np.arange(20), max_samples=0, random_state=42)
+
+    with pytest.raises(ValueError, match="max_samples must be positive"):
+        subsample_indices(np.arange(20), max_samples=-1, random_state=42)
 
 
 def test_train_evaluate_tabpfn_with_fake_classifier() -> None:

@@ -48,4 +48,3 @@ def summarize_dataset_dir(
     if not rows:
         raise FileNotFoundError(f"No V4FinBench parquet files found in {root}")
     return pd.DataFrame(rows)
-
