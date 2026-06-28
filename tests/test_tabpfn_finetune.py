@@ -1,5 +1,6 @@
 from v4finbench.models.tabpfn_finetune import (
     TabPFNFinetuneEpochResult,
+    build_evaluation_clone_config,
     finetune_config_from_mapping,
     finetune_result_to_row,
     select_best_epoch,
@@ -58,6 +59,20 @@ def test_select_best_epoch_uses_validation_f1() -> None:
     )
 
     assert select_best_epoch([low, high]) == high
+
+
+def test_build_evaluation_clone_config_drops_model_path() -> None:
+    config = build_evaluation_clone_config(
+        {
+            "model_path": "weights/tabpfn.ckpt",
+            "device": "cuda",
+            "random_state": 42,
+        }
+    )
+
+    assert "model_path" not in config
+    assert config["device"] == "cuda"
+    assert config["inference_config"] == {"SUBSAMPLE_SAMPLES": 10_000}
 
 
 def test_finetune_result_to_row_flattens_metrics() -> None:

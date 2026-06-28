@@ -283,13 +283,18 @@ def clone_tabpfn_for_evaluation(classifier, classifier_config: dict[str, Any]):
             "TabPFN evaluation cloning requires `uv sync --extra tabpfn`."
         ) from exc
 
-    eval_config = {
-        **classifier_config,
-        "inference_config": {
-            "SUBSAMPLE_SAMPLES": classifier_config.get("SUBSAMPLE_SAMPLES", 10_000)
-        },
-    }
+    eval_config = build_evaluation_clone_config(classifier_config)
     return clone_model_for_evaluation(classifier, eval_config, TabPFNClassifier)
+
+
+def build_evaluation_clone_config(classifier_config: dict[str, Any]) -> dict[str, Any]:
+    eval_config = {
+        key: value for key, value in classifier_config.items() if key != "model_path"
+    }
+    eval_config["inference_config"] = {
+        "SUBSAMPLE_SAMPLES": classifier_config.get("SUBSAMPLE_SAMPLES", 10_000)
+    }
+    return eval_config
 
 
 def select_best_epoch(
