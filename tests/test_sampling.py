@@ -13,6 +13,15 @@ def test_closest_points_to_centers_returns_real_rows() -> None:
     np.testing.assert_array_equal(closest, np.array([[2.0], [10.0]]))
 
 
+def test_closest_points_to_centers_supports_explicit_sklearn_lookup() -> None:
+    X = np.array([[0.0], [2.0], [10.0], [12.0]])
+    centers = np.array([[1.8], [11.1]])
+
+    closest = closest_points_to_centers(X, centers, backend="sklearn")
+
+    np.testing.assert_array_equal(closest, np.array([[2.0], [12.0]]))
+
+
 def test_create_prototypes_is_deterministic() -> None:
     X = np.arange(20, dtype=float).reshape(-1, 1)
 

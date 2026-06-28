@@ -35,6 +35,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--target-col", default="main_label")
     parser.add_argument("--model-path", default=None)
     parser.add_argument("--device", default=None)
+    parser.add_argument(
+        "--prototype-backend",
+        choices=["cuml", "sklearn"],
+        default=None,
+    )
+    parser.add_argument("--prototype-device", default=None, help=argparse.SUPPRESS)
     parser.add_argument("--epochs", type=int, default=None)
     parser.add_argument("--max-train-samples", type=int, default=None)
     parser.add_argument("--max-eval-samples", type=int, default=None)
@@ -47,6 +53,7 @@ def main() -> None:
     overrides = {
         "model_path": args.model_path,
         "device": args.device,
+        "prototype_backend": args.prototype_backend or args.prototype_device,
         "epochs": args.epochs,
         "max_train_samples": args.max_train_samples,
         "max_eval_samples": args.max_eval_samples,

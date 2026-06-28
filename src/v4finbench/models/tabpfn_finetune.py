@@ -14,7 +14,11 @@ from v4finbench.data.preprocessing import (
 )
 from v4finbench.evaluation.metrics import binary_classification_metrics
 from v4finbench.evaluation.thresholds import find_best_f1_threshold
-from v4finbench.models.tabpfn import select_context_samples, subsample_indices
+from v4finbench.models.tabpfn import (
+    prototype_backend_from_mapping,
+    select_context_samples,
+    subsample_indices,
+)
 from v4finbench.sampling.strategies import SamplingConfig, apply_sampling
 
 
@@ -27,6 +31,7 @@ class TabPFNFinetuneConfig:
     minority_to_majority_ratio: float = 0.3
     random_state: int = 42
     device: str = "auto"
+    prototype_backend: str = "cuml"
     model_path: str | None = None
     epochs: int = 10
     learning_rate: float = 5e-6
@@ -68,6 +73,7 @@ def finetune_config_from_mapping(values: dict[str, Any]) -> TabPFNFinetuneConfig
         minority_to_majority_ratio=float(values.get("minority_to_majority_ratio", 0.3)),
         random_state=int(values.get("random_seed", values.get("random_state", 42))),
         device=values.get("device", "auto"),
+        prototype_backend=prototype_backend_from_mapping(values),
         model_path=values.get("model_path"),
         epochs=int(finetuning.get("epochs", values.get("epochs", 10))),
         learning_rate=float(
@@ -98,6 +104,60 @@ def finetune_evaluate_tabpfn(
 ) -> list[TabPFNFinetuneEpochResult]:
     config = config or TabPFNFinetuneConfig()
     arrays = _prepare_arrays(df, train_idx, val_idx, test_idx, config, target_col)
+    return _finetune_evaluate_prepared_arrays(
+        arrays=arrays,
+        horizon=horizon,
+        fold=fold,
+        config=config,
+        output_dir=output_dir,
+        classifier_factory=classifier_factory,
+    )
+
+
+def finetune_evaluate_tabpfn_splits(
+    train_df: pd.DataFrame,
+    val_df: pd.DataFrame,
+    test_df: pd.DataFrame,
+    horizon: int,
+    fold: int,
+    config: TabPFNFinetuneConfig | None = None,
+    target_col: str = "main_label",
+    output_dir: str | Path | None = None,
+    classifier_factory: ClassifierFactory | None = None,
+) -> list[TabPFNFinetuneEpochResult]:
+    config = config or TabPFNFinetuneConfig()
+    arrays = _prepare_arrays_from_split_frames(
+        train_df=train_df,
+        val_df=val_df,
+        test_df=test_df,
+        config=config,
+        target_col=target_col,
+    )
+    return _finetune_evaluate_prepared_arrays(
+        arrays=arrays,
+        horizon=horizon,
+        fold=fold,
+        config=config,
+        output_dir=output_dir,
+        classifier_factory=classifier_factory,
+    )
+
+
+def _finetune_evaluate_prepared_arrays(
+    arrays: tuple[
+        np.ndarray,
+        np.ndarray,
+        np.ndarray,
+        np.ndarray,
+        np.ndarray,
+        np.ndarray,
+    ],
+    horizon: int,
+    fold: int,
+    config: TabPFNFinetuneConfig,
+    output_dir: str | Path | None = None,
+    classifier_factory: ClassifierFactory | None = None,
+) -> list[TabPFNFinetuneEpochResult]:
     X_train, y_train, X_val, y_val, X_test, y_test = arrays
 
     classifier, classifier_config = (
@@ -321,20 +381,70 @@ def _prepare_arrays(
         config.random_state + 2,
     )
     prepared = split_features_target(df, target_col=target_col)
-    X_train_raw = prepared.X.iloc[train_idx]
-    X_val_raw = prepared.X.iloc[val_idx]
-    X_test_raw = prepared.X.iloc[test_idx]
-    y_train = prepared.y.iloc[train_idx].to_numpy()
-    y_val = prepared.y.iloc[val_idx].to_numpy()
-    y_test = prepared.y.iloc[test_idx].to_numpy()
+    return _preprocess_prepared_split_frames(
+        train_X=prepared.X.iloc[train_idx],
+        train_y=prepared.y.iloc[train_idx].to_numpy(),
+        val_X=prepared.X.iloc[val_idx],
+        val_y=prepared.y.iloc[val_idx].to_numpy(),
+        test_X=prepared.X.iloc[test_idx],
+        test_y=prepared.y.iloc[test_idx].to_numpy(),
+        config=config,
+    )
 
+
+def _prepare_arrays_from_split_frames(
+    train_df: pd.DataFrame,
+    val_df: pd.DataFrame,
+    test_df: pd.DataFrame,
+    config: TabPFNFinetuneConfig,
+    target_col: str,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    train_df = _subsample_frame(
+        train_df,
+        config.max_train_samples,
+        config.random_state,
+    )
+    val_df = _subsample_frame(
+        val_df,
+        config.max_eval_samples,
+        config.random_state + 1,
+    )
+    test_df = _subsample_frame(
+        test_df,
+        config.max_eval_samples,
+        config.random_state + 2,
+    )
+
+    train_prepared = split_features_target(train_df, target_col=target_col)
+    val_prepared = split_features_target(val_df, target_col=target_col)
+    test_prepared = split_features_target(test_df, target_col=target_col)
+    return _preprocess_prepared_split_frames(
+        train_X=train_prepared.X,
+        train_y=train_prepared.y.to_numpy(),
+        val_X=val_prepared.X,
+        val_y=val_prepared.y.to_numpy(),
+        test_X=test_prepared.X,
+        test_y=test_prepared.y.to_numpy(),
+        config=config,
+    )
+
+
+def _preprocess_prepared_split_frames(
+    train_X: pd.DataFrame,
+    train_y: np.ndarray,
+    val_X: pd.DataFrame,
+    val_y: np.ndarray,
+    test_X: pd.DataFrame,
+    test_y: np.ndarray,
+    config: TabPFNFinetuneConfig,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     X_train, X_val, X_test, _ = preprocess_train_val_test(
-        X_train_raw,
-        X_val_raw,
-        X_test_raw,
+        train_X,
+        val_X,
+        test_X,
     )
     X_train_np = np.asarray(X_train, dtype=np.float64)
-    y_train = np.asarray(y_train, dtype=int)
+    y_train = np.asarray(train_y, dtype=int)
     X_train_np, y_train = apply_sampling(
         X_train_np,
         y_train,
@@ -342,16 +452,26 @@ def _prepare_arrays(
             strategy=config.sampling_strategy,
             random_state=config.random_state,
             minority_to_majority_ratio=config.minority_to_majority_ratio,
+            prototype_backend=config.prototype_backend,
         ),
     )
     return (
         X_train_np,
         y_train,
         np.asarray(X_val, dtype=np.float64),
-        np.asarray(y_val, dtype=int),
+        np.asarray(val_y, dtype=int),
         np.asarray(X_test, dtype=np.float64),
-        np.asarray(y_test, dtype=int),
+        np.asarray(test_y, dtype=int),
     )
+
+
+def _subsample_frame(
+    df: pd.DataFrame,
+    max_samples: int | None,
+    random_state: int,
+) -> pd.DataFrame:
+    indices = subsample_indices(np.arange(len(df)), max_samples, random_state)
+    return df.iloc[indices]
 
 
 def _make_optimizer(classifier, config: TabPFNFinetuneConfig):

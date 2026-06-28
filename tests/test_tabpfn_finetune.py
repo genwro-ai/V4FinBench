@@ -13,6 +13,8 @@ def test_finetune_config_from_mapping_reads_nested_finetuning() -> None:
             "random_seed": 768,
             "model_path": "weights/tabpfn.ckpt",
             "n_inference_context_samples": 10000,
+            "device": "cuda",
+            "prototype_backend": "cuml",
             "finetuning": {
                 "epochs": 3,
                 "learning_rate": 1e-5,
@@ -25,6 +27,8 @@ def test_finetune_config_from_mapping_reads_nested_finetuning() -> None:
     assert config.sampling_strategy == "prototype_undersampling"
     assert config.random_state == 768
     assert config.model_path == "weights/tabpfn.ckpt"
+    assert config.device == "cuda"
+    assert config.prototype_backend == "cuml"
     assert config.epochs == 3
     assert config.learning_rate == 1e-5
     assert config.batch_size == 512

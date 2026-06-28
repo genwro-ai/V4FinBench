@@ -6,7 +6,7 @@ FOLDS_DIR="${FOLDS_DIR:-data/folds}"
 OUT_DIR="${OUT_DIR:-results/generated/tabpfn}"
 CONFIG="${CONFIG:-configs/tabpfn/vanilla_prototype_undersample.yaml}"
 
-uv run --extra tabpfn python scripts/run_tabpfn.py \
+uv run --extra tabpfn --extra rapids python scripts/run_tabpfn.py \
   --config "${CONFIG}" \
   --data-dir "${DATA_DIR}" \
   --folds-dir "${FOLDS_DIR}" \
