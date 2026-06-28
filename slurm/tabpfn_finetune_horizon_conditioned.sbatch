@@ -6,7 +6,7 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=80G
 #SBATCH --gres=gpu:1
-#SBATCH --array=0-4
+#SBATCH --array=0-4%1
 
 set -euo pipefail
 
@@ -24,4 +24,5 @@ uv run --extra tabpfn --extra rapids python scripts/finetune_tabpfn_horizon_cond
   --horizons "${HORIZONS:-all}" \
   --fold "${FOLD}" \
   --model-path "${MODEL_PATH}" \
-  --device "${DEVICE:-cuda}"
+  --device "${DEVICE:-cuda}" \
+  --eval-batch-size "${EVAL_BATCH_SIZE:-8192}"

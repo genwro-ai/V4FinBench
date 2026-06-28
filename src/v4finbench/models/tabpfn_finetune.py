@@ -34,6 +34,7 @@ class TabPFNFinetuneConfig:
     prototype_backend: str = "cuml"
     model_path: str | None = None
     inference_precision: str = "auto"
+    eval_batch_size: int | None = 8192
     epochs: int = 10
     learning_rate: float = 5e-6
     batch_size: int = 1024
@@ -77,6 +78,7 @@ def finetune_config_from_mapping(values: dict[str, Any]) -> TabPFNFinetuneConfig
         prototype_backend=prototype_backend_from_mapping(values),
         model_path=values.get("model_path"),
         inference_precision=str(values.get("inference_precision", "auto")),
+        eval_batch_size=_optional_int(values.get("eval_batch_size", 8192)),
         epochs=int(finetuning.get("epochs", values.get("epochs", 10))),
         learning_rate=float(
             finetuning.get("learning_rate", values.get("learning_rate", 5e-6))
@@ -223,11 +225,19 @@ def evaluate_finetuned_tabpfn(
     )
     eval_classifier.fit(X_context, y_context)
 
-    val_score = eval_classifier.predict_proba(X_val)[:, 1]
+    val_score = _predict_positive_proba(
+        eval_classifier,
+        X_val,
+        config.eval_batch_size,
+    )
     threshold = find_best_f1_threshold(y_val, val_score)
     val_metrics = binary_classification_metrics(y_val, val_score, threshold)
 
-    test_score = eval_classifier.predict_proba(X_test)[:, 1]
+    test_score = _predict_positive_proba(
+        eval_classifier,
+        X_test,
+        config.eval_batch_size,
+    )
     metrics = binary_classification_metrics(y_test, test_score, threshold)
     return TabPFNFinetuneEpochResult(
         model="tabpfn_finetuned",
@@ -323,6 +333,23 @@ def resolve_tabpfn_inference_precision(value: str, torch_module: Any) -> Any:
         "Unsupported TabPFN inference_precision. Use one of: auto, autocast, "
         "float32, float16, bfloat16."
     )
+
+
+def _predict_positive_proba(
+    classifier,
+    X: np.ndarray,
+    batch_size: int | None,
+) -> np.ndarray:
+    if batch_size is None or len(X) <= batch_size:
+        return classifier.predict_proba(X)[:, 1]
+    if batch_size <= 0:
+        raise ValueError("eval_batch_size must be positive or null.")
+
+    scores = []
+    for start in range(0, len(X), batch_size):
+        stop = min(start + batch_size, len(X))
+        scores.append(classifier.predict_proba(X[start:stop])[:, 1])
+    return np.concatenate(scores)
 
 
 def select_best_epoch(

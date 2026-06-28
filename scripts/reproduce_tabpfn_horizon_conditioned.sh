@@ -12,6 +12,7 @@ CONFIG="${CONFIG:-configs/tabpfn/finetune_horizon_conditioned.yaml}"
 MODEL_PATH="${MODEL_PATH:?Set MODEL_PATH to the TabPFN checkpoint path}"
 DEVICE="${DEVICE:-cuda}"
 HORIZONS="${HORIZONS:-all}"
+EVAL_BATCH_SIZE="${EVAL_BATCH_SIZE:-8192}"
 
 for fold in 0 1 2 3 4; do
   uv run --extra tabpfn --extra rapids python scripts/finetune_tabpfn_horizon_conditioned.py \
@@ -22,7 +23,8 @@ for fold in 0 1 2 3 4; do
     --horizons "${HORIZONS}" \
     --fold "${fold}" \
     --model-path "${MODEL_PATH}" \
-    --device "${DEVICE}"
+    --device "${DEVICE}" \
+    --eval-batch-size "${EVAL_BATCH_SIZE}"
 done
 
 uv run python scripts/aggregate_finetune_best.py \

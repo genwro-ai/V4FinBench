@@ -4,6 +4,7 @@ sampling_strategy: prototype_undersampling
 random_seed: 768
 valid_set_ratio: 0.3
 n_inference_context_samples: 10000
+eval_batch_size: 8192
 minority_to_majority_ratio: 0.3
 model_path: null
 device: auto

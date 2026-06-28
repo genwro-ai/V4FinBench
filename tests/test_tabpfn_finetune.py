@@ -1,5 +1,8 @@
+import numpy as np
+
 from v4finbench.models.tabpfn_finetune import (
     TabPFNFinetuneEpochResult,
+    _predict_positive_proba,
     build_evaluation_clone_config,
     finetune_config_from_mapping,
     finetune_result_to_row,
@@ -15,6 +18,7 @@ def test_finetune_config_from_mapping_reads_nested_finetuning() -> None:
             "random_seed": 768,
             "model_path": "weights/tabpfn.ckpt",
             "n_inference_context_samples": 10000,
+            "eval_batch_size": 2048,
             "device": "cuda",
             "inference_precision": "auto",
             "prototype_backend": "cuml",
@@ -30,6 +34,7 @@ def test_finetune_config_from_mapping_reads_nested_finetuning() -> None:
     assert config.sampling_strategy == "prototype_undersampling"
     assert config.random_state == 768
     assert config.model_path == "weights/tabpfn.ckpt"
+    assert config.eval_batch_size == 2048
     assert config.device == "cuda"
     assert config.inference_precision == "auto"
     assert config.prototype_backend == "cuml"
@@ -87,6 +92,27 @@ def test_resolve_tabpfn_inference_precision_keeps_auto_modes() -> None:
     assert resolve_tabpfn_inference_precision("auto", TorchStub) == "auto"
     assert resolve_tabpfn_inference_precision("autocast", TorchStub) == "autocast"
     assert resolve_tabpfn_inference_precision("bfloat16", TorchStub) == "bfloat16"
+
+
+def test_predict_positive_proba_batches_large_eval_arrays() -> None:
+    class Classifier:
+        def __init__(self) -> None:
+            self.call_sizes = []
+
+        def predict_proba(self, X):
+            self.call_sizes.append(len(X))
+            return np.asarray([[1 - row[0], row[0]] for row in X])
+
+    classifier = Classifier()
+
+    scores = _predict_positive_proba(
+        classifier,
+        [[0.1], [0.2], [0.3], [0.4], [0.5]],
+        batch_size=2,
+    )
+
+    assert classifier.call_sizes == [2, 2, 1]
+    assert scores.tolist() == [0.1, 0.2, 0.3, 0.4, 0.5]
 
 
 def test_finetune_result_to_row_flattens_metrics() -> None:

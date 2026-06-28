@@ -62,6 +62,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--prototype-device", default=None, help=argparse.SUPPRESS)
     parser.add_argument("--epochs", type=int, default=None)
+    parser.add_argument("--eval-batch-size", type=int, default=None)
     parser.add_argument(
         "--max-train-samples",
         type=int,
@@ -87,6 +88,7 @@ def main() -> None:
         "device": args.device,
         "prototype_backend": args.prototype_backend or args.prototype_device,
         "epochs": args.epochs,
+        "eval_batch_size": args.eval_batch_size,
         "max_train_samples": args.max_train_samples,
         "max_eval_samples": args.max_eval_samples,
     }
