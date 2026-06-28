@@ -33,6 +33,7 @@ class TabPFNFinetuneConfig:
     device: str = "auto"
     prototype_backend: str = "cuml"
     model_path: str | None = None
+    inference_precision: str = "auto"
     epochs: int = 10
     learning_rate: float = 5e-6
     batch_size: int = 1024
@@ -75,6 +76,7 @@ def finetune_config_from_mapping(values: dict[str, Any]) -> TabPFNFinetuneConfig
         device=values.get("device", "auto"),
         prototype_backend=prototype_backend_from_mapping(values),
         model_path=values.get("model_path"),
+        inference_precision=str(values.get("inference_precision", "auto")),
         epochs=int(finetuning.get("epochs", values.get("epochs", 10))),
         learning_rate=float(
             finetuning.get("learning_rate", values.get("learning_rate", 5e-6))
@@ -255,7 +257,9 @@ def make_finetunable_tabpfn_classifier(
         "ignore_pretraining_limits": True,
         "n_estimators": 1,
         "random_state": config.random_state,
-        "inference_precision": torch.bfloat16,
+        "inference_precision": resolve_tabpfn_inference_precision(
+            config.inference_precision, torch
+        ),
     }
     if config.device != "auto":
         classifier_config["device"] = config.device
@@ -295,6 +299,30 @@ def build_evaluation_clone_config(classifier_config: dict[str, Any]) -> dict[str
         "SUBSAMPLE_SAMPLES": classifier_config.get("SUBSAMPLE_SAMPLES", 10_000)
     }
     return eval_config
+
+
+def resolve_tabpfn_inference_precision(value: str, torch_module: Any) -> Any:
+    normalized = value.lower()
+    if normalized in {"auto", "autocast"}:
+        return normalized
+
+    dtype_by_name = {
+        "float32": torch_module.float32,
+        "fp32": torch_module.float32,
+        "float": torch_module.float32,
+        "float16": torch_module.float16,
+        "fp16": torch_module.float16,
+        "half": torch_module.float16,
+        "bfloat16": torch_module.bfloat16,
+        "bf16": torch_module.bfloat16,
+    }
+    if normalized in dtype_by_name:
+        return dtype_by_name[normalized]
+
+    raise ValueError(
+        "Unsupported TabPFN inference_precision. Use one of: auto, autocast, "
+        "float32, float16, bfloat16."
+    )
 
 
 def select_best_epoch(

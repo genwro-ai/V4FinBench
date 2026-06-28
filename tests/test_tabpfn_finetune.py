@@ -3,6 +3,7 @@ from v4finbench.models.tabpfn_finetune import (
     build_evaluation_clone_config,
     finetune_config_from_mapping,
     finetune_result_to_row,
+    resolve_tabpfn_inference_precision,
     select_best_epoch,
 )
 
@@ -15,6 +16,7 @@ def test_finetune_config_from_mapping_reads_nested_finetuning() -> None:
             "model_path": "weights/tabpfn.ckpt",
             "n_inference_context_samples": 10000,
             "device": "cuda",
+            "inference_precision": "auto",
             "prototype_backend": "cuml",
             "finetuning": {
                 "epochs": 3,
@@ -29,6 +31,7 @@ def test_finetune_config_from_mapping_reads_nested_finetuning() -> None:
     assert config.random_state == 768
     assert config.model_path == "weights/tabpfn.ckpt"
     assert config.device == "cuda"
+    assert config.inference_precision == "auto"
     assert config.prototype_backend == "cuml"
     assert config.epochs == 3
     assert config.learning_rate == 1e-5
@@ -73,6 +76,17 @@ def test_build_evaluation_clone_config_drops_model_path() -> None:
     assert "model_path" not in config
     assert config["device"] == "cuda"
     assert config["inference_config"] == {"SUBSAMPLE_SAMPLES": 10_000}
+
+
+def test_resolve_tabpfn_inference_precision_keeps_auto_modes() -> None:
+    class TorchStub:
+        float32 = "float32"
+        float16 = "float16"
+        bfloat16 = "bfloat16"
+
+    assert resolve_tabpfn_inference_precision("auto", TorchStub) == "auto"
+    assert resolve_tabpfn_inference_precision("autocast", TorchStub) == "autocast"
+    assert resolve_tabpfn_inference_precision("bfloat16", TorchStub) == "bfloat16"
 
 
 def test_finetune_result_to_row_flattens_metrics() -> None:
