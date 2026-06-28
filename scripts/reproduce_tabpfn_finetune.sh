@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [[ -f scripts/athena_env.sh ]]; then
+  source scripts/athena_env.sh
+fi
+
 DATA_DIR="${DATA_DIR:-data/raw}"
 FOLDS_DIR="${FOLDS_DIR:-data/folds}"
 OUT_DIR="${OUT_DIR:-results/generated/tabpfn_finetune}"

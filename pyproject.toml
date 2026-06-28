@@ -35,6 +35,7 @@ tabpfn = [
 rapids = [
     "cuml-cu12; platform_system == 'Linux'",
     "cupy-cuda12x; platform_system == 'Linux'",
+    "nvidia-cuda-nvrtc-cu12; platform_system == 'Linux'",
 ]
 kaggle = [
     "kagglehub>=0.3.0",

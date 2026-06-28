@@ -11,6 +11,7 @@
 set -euo pipefail
 
 cd "${SLURM_SUBMIT_DIR}"
+source scripts/athena_env.sh
 
 MODEL_PATH="${MODEL_PATH:?Set MODEL_PATH to the TabPFN checkpoint path}"
 HORIZON=$((SLURM_ARRAY_TASK_ID / 5))

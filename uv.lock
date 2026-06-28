@@ -1966,7 +1966,7 @@ name = "nvidia-cudnn-cu12"
 version = "9.1.0.70"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-cublas-cu12" },
+    { name = "nvidia-cublas-cu12", marker = "python_full_version >= '3.11' or platform_machine == 'x86_64'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/9f/fd/713452cd72343f682b1c7b9321e23829f00b842ceaedcda96e742ea0b0b3/nvidia_cudnn_cu12-9.1.0.70-py3-none-manylinux2014_x86_64.whl", hash = "sha256:165764f44ef8c61fcdfdfdbe769d687e06374059fbb388b6c89ecb0e28793a6f", size = 664752741, upload-time = "2024-04-22T15:24:15.253Z" },
@@ -3305,7 +3305,7 @@ name = "triton"
 version = "3.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "filelock" },
+    { name = "filelock", marker = "python_full_version >= '3.11' or platform_machine == 'x86_64'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/45/27/14cc3101409b9b4b9241d2ba7deaa93535a217a211c86c4cc7151fb12181/triton-3.0.0-1-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:e1efef76935b2febc365bfadf74bcb65a6f959a9872e5bddf44cc9e0adce1e1a", size = 209376304, upload-time = "2024-07-19T20:56:41.483Z" },
@@ -3409,6 +3409,7 @@ rapids = [
     { name = "cuml-cu12", version = "26.2.0", source = { registry = "https://pypi.nvidia.com/" }, marker = "python_full_version < '3.11' and sys_platform == 'linux'" },
     { name = "cuml-cu12", version = "26.6.0", source = { registry = "https://pypi.nvidia.com/" }, marker = "python_full_version >= '3.11' and sys_platform == 'linux'" },
     { name = "cupy-cuda12x", marker = "sys_platform == 'linux'" },
+    { name = "nvidia-cuda-nvrtc-cu12", marker = "sys_platform == 'linux'" },
 ]
 tabpfn = [
     { name = "tabpfn" },
@@ -3433,6 +3434,7 @@ requires-dist = [
     { name = "lightgbm", specifier = ">=4.6.0" },
     { name = "numba", specifier = ">=0.60.0" },
     { name = "numpy", specifier = ">=1.26,<2.0" },
+    { name = "nvidia-cuda-nvrtc-cu12", marker = "sys_platform == 'linux' and extra == 'rapids'" },
     { name = "pandas", specifier = ">=2.2.0" },
     { name = "peft", marker = "extra == 'llama'", specifier = ">=0.12.0" },
     { name = "pyarrow", specifier = ">=17.0.0" },

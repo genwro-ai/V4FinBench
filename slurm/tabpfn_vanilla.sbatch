@@ -10,6 +10,7 @@
 set -euo pipefail
 
 cd "${SLURM_SUBMIT_DIR}"
+source scripts/athena_env.sh
 uv run --extra tabpfn --extra rapids python scripts/run_tabpfn.py \
   --config "${CONFIG:-configs/tabpfn/vanilla_prototype_undersample.yaml}" \
   --data-dir "${DATA_DIR:-data/raw}" \
