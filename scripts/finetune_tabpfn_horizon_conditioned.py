@@ -14,7 +14,7 @@ from v4finbench.data.horizon_joining import (
 from v4finbench.data.schema import HORIZON_FILES
 from v4finbench.models.tabpfn_finetune import (
     finetune_config_from_mapping,
-    finetune_evaluate_tabpfn_splits,
+    finetune_evaluate_tabpfn_splits_by_horizon,
     finetune_result_to_row,
     select_best_epoch,
 )
@@ -111,7 +111,16 @@ def main() -> None:
         output_dir = args.out / horizon_dir / f"fold_{fold}"
         _remove_if_exists(output_dir / "metrics.csv")
         _remove_if_exists(output_dir / "metrics.json")
+        _remove_if_exists(output_dir / "metrics_by_horizon.csv")
+        _remove_if_exists(output_dir / "metrics_by_horizon.json")
         _remove_if_exists(output_dir / "best_epoch.json")
+        _remove_if_exists(output_dir / "best_epoch_by_horizon.csv")
+        _remove_if_exists(output_dir / "best_epoch_by_horizon.json")
+        _remove_if_exists(output_dir / "joint_best_epoch_by_horizon.csv")
+        _remove_if_exists(output_dir / "joint_best_epoch_by_horizon.json")
+        _remove_if_exists(output_dir / "best_epoch.pt")
+        _remove_matching(output_dir, "best_epoch_h*.pt")
+        _remove_matching(output_dir, "epoch_*.pt")
         output_dir.mkdir(parents=True, exist_ok=True)
         _write_join_metadata(output_dir, horizons, args.horizon_col, joined)
 
@@ -123,20 +132,27 @@ def main() -> None:
             f"sampling={config.sampling_strategy}",
             flush=True,
         )
-        results = finetune_evaluate_tabpfn_splits(
+        results, horizon_results = finetune_evaluate_tabpfn_splits_by_horizon(
             train_df=joined.train,
             val_df=joined.val,
             test_df=joined.test,
-            horizon=JOINT_HORIZON_ID,
+            horizons=horizons,
             fold=fold,
             config=config,
             target_col=args.target_col,
+            horizon_col=args.horizon_col,
+            joint_horizon=JOINT_HORIZON_ID,
             output_dir=output_dir,
         )
         best = select_best_epoch(results)
         rows = [finetune_result_to_row(result) for result in results]
         (output_dir / "metrics.json").write_text(
             json.dumps(rows, indent=2),
+            encoding="utf-8",
+        )
+        horizon_rows = [finetune_result_to_row(result) for result in horizon_results]
+        (output_dir / "metrics_by_horizon.json").write_text(
+            json.dumps(horizon_rows, indent=2),
             encoding="utf-8",
         )
         print(
@@ -212,6 +228,9 @@ def _write_join_metadata(
         "horizons": horizons,
         "horizon_col": horizon_col,
         "joint_horizon_id": JOINT_HORIZON_ID,
+        "training_context": "horizon_specific_tasks_shared_model",
+        "evaluation_context": "horizon_specific_context",
+        "checkpoint_selection": "macro_mean_validation_f1",
         "split_rows": {
             "train": len(joined.train),
             "val": len(joined.val),
@@ -227,6 +246,12 @@ def _write_join_metadata(
 def _remove_if_exists(path: Path) -> None:
     if path.exists():
         path.unlink()
+
+
+def _remove_matching(directory: Path, pattern: str) -> None:
+    for path in directory.glob(pattern):
+        if path.is_file():
+            path.unlink()
 
 
 if __name__ == "__main__":

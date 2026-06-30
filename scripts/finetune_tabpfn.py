@@ -76,6 +76,8 @@ def main() -> None:
     output_dir = args.out / f"h{args.horizon}" / f"fold_{args.fold}"
     _remove_if_exists(output_dir / "metrics.csv")
     _remove_if_exists(output_dir / "best_epoch.json")
+    _remove_if_exists(output_dir / "best_epoch.pt")
+    _remove_matching(output_dir, "epoch_*.pt")
     results = finetune_evaluate_tabpfn(
         df=df,
         train_idx=train_idx,
@@ -119,6 +121,12 @@ def _load_split_indices(
 def _remove_if_exists(path: Path) -> None:
     if path.exists():
         path.unlink()
+
+
+def _remove_matching(directory: Path, pattern: str) -> None:
+    for path in directory.glob(pattern):
+        if path.is_file():
+            path.unlink()
 
 
 if __name__ == "__main__":

@@ -12,6 +12,7 @@ inference_precision: auto
 prototype_backend: cuml
 loss_function: cross_entropy
 save_checkpoints: false
+save_best_checkpoint: true
 finetuning:
   learning_rate: 0.000005
   epochs: 10

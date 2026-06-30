@@ -31,3 +31,9 @@ uv run python scripts/aggregate_finetune_best.py \
   --root "${OUT_DIR}" \
   --out "${OUT_DIR}/best_epochs.csv" \
   --summary "${OUT_DIR}/summary.csv"
+
+uv run python scripts/aggregate_horizon_conditioned_best.py \
+  --root "${OUT_DIR}" \
+  --out "${OUT_DIR}/best_epochs_by_horizon.csv" \
+  --summary "${OUT_DIR}/summary_by_horizon.csv" \
+  --means "${OUT_DIR}/mean_metrics_by_horizon.csv"
