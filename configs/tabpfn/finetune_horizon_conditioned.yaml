@@ -1,5 +1,5 @@
 model: tabpfn
-mode: finetune
+mode: finetune_horizon_conditioned
 sampling_strategy: prototype_undersampling
 random_seed: 768
 valid_set_ratio: 0.3

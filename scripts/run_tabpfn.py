@@ -43,6 +43,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--random-state", type=int, default=None)
     parser.add_argument("--device", default=None)
     parser.add_argument(
+        "--prototype-backend",
+        choices=["cuml", "sklearn"],
+        default=None,
+    )
+    parser.add_argument("--prototype-device", default=None, help=argparse.SUPPRESS)
+    parser.add_argument(
         "--model-path",
         default=None,
         help="Optional TabPFN checkpoint/weights path passed to TabPFNClassifier.",
@@ -116,6 +122,7 @@ def build_tabpfn_config(args: argparse.Namespace) -> TabPFNRunConfig:
         "minority_to_majority_ratio": args.minority_to_majority_ratio,
         "random_state": args.random_state,
         "device": args.device,
+        "prototype_backend": args.prototype_backend or args.prototype_device,
         "model_path": args.model_path,
     }
     values.update({key: value for key, value in overrides.items() if value is not None})

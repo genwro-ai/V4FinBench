@@ -32,6 +32,11 @@ tabpfn = [
     "tabpfn-common-utils==0.2.10",
     "tabpfn-extensions==0.2.2",
 ]
+rapids = [
+    "cuml-cu12; platform_system == 'Linux'",
+    "cupy-cuda12x; platform_system == 'Linux'",
+    "nvidia-cuda-nvrtc-cu12; platform_system == 'Linux'",
+]
 kaggle = [
     "kagglehub>=0.3.0",
 ]
@@ -65,3 +70,11 @@ exclude = [
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+
+[[tool.uv.index]]
+name = "nvidia"
+url = "https://pypi.nvidia.com"
+explicit = true
+
+[tool.uv.sources]
+cuml-cu12 = { index = "nvidia" }

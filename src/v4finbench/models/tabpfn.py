@@ -24,6 +24,7 @@ class TabPFNRunConfig:
     minority_to_majority_ratio: float = 0.3
     random_state: int = 42
     device: str = "auto"
+    prototype_backend: str = "cuml"
     model_path: str | None = None
 
 
@@ -50,8 +51,29 @@ def tabpfn_config_from_mapping(values: dict[str, Any]) -> TabPFNRunConfig:
         minority_to_majority_ratio=float(values.get("minority_to_majority_ratio", 0.3)),
         random_state=int(values.get("random_seed", values.get("random_state", 42))),
         device=values.get("device", "auto"),
+        prototype_backend=prototype_backend_from_mapping(values),
         model_path=values.get("model_path"),
     )
+
+
+def prototype_backend_from_mapping(
+    values: dict[str, Any],
+    default: str = "cuml",
+) -> str:
+    backend = values.get("prototype_backend")
+    if backend is not None:
+        return str(backend)
+
+    legacy_device = values.get("prototype_device")
+    if legacy_device is None:
+        return default
+
+    normalized = str(legacy_device).lower()
+    if normalized == "cpu":
+        return "sklearn"
+    if normalized in {"auto", "cuda", "gpu"}:
+        return "cuml"
+    return normalized
 
 
 def train_evaluate_tabpfn(
@@ -105,6 +127,7 @@ def train_evaluate_tabpfn(
             strategy=config.sampling_strategy,
             random_state=config.random_state,
             minority_to_majority_ratio=config.minority_to_majority_ratio,
+            prototype_backend=config.prototype_backend,
         ),
     )
     X_context, y_context = select_context_samples(

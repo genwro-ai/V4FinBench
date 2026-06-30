@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [[ -f scripts/athena_env.sh ]]; then
+  source scripts/athena_env.sh
+fi
+
 DATA_DIR="${DATA_DIR:-data/raw}"
 FOLDS_DIR="${FOLDS_DIR:-data/folds}"
 OUT_DIR="${OUT_DIR:-results/generated/tabpfn_finetune}"
@@ -10,7 +14,7 @@ DEVICE="${DEVICE:-cuda}"
 
 for horizon in 0 1 2 3 4 5; do
   for fold in 0 1 2 3 4; do
-    uv run --extra tabpfn python scripts/finetune_tabpfn.py \
+    uv run --extra tabpfn --extra rapids python scripts/finetune_tabpfn.py \
       --config "${CONFIG}" \
       --data-dir "${DATA_DIR}" \
       --folds-dir "${FOLDS_DIR}" \

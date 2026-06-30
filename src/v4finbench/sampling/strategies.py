@@ -22,6 +22,7 @@ class SamplingConfig:
     random_state: int = 42
     minority_to_majority_ratio: float = 0.3
     use_mini_batch: bool = True
+    prototype_backend: str = "sklearn"
 
 
 def apply_sampling(
@@ -79,6 +80,7 @@ def prototype_undersample(
         n_prototypes=n_majority,
         random_state=config.random_state,
         use_mini_batch=config.use_mini_batch,
+        backend=config.prototype_backend,
     )
 
     X_sampled = np.vstack([minority_samples, majority_prototypes])

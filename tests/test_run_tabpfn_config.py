@@ -10,6 +10,8 @@ def test_tabpfn_config_from_mapping_uses_values() -> None:
             "max_train_samples": 1000,
             "max_eval_samples": 500,
             "model_path": "weights/tabpfn.ckpt",
+            "device": "cuda",
+            "prototype_backend": "cuml",
         }
     )
 
@@ -19,3 +21,5 @@ def test_tabpfn_config_from_mapping_uses_values() -> None:
     assert config.max_eval_samples == 500
     assert config.random_state == 12
     assert config.model_path == "weights/tabpfn.ckpt"
+    assert config.device == "cuda"
+    assert config.prototype_backend == "cuml"

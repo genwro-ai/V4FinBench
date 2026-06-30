@@ -213,8 +213,8 @@ Run a local vanilla TabPFN smoke test after installing the optional TabPFN
 dependencies. Keep the context small for local checks.
 
 ```bash
-uv sync --extra tabpfn
-uv run --extra tabpfn python scripts/run_tabpfn.py \
+uv sync --extra tabpfn --extra rapids
+uv run --extra tabpfn --extra rapids python scripts/run_tabpfn.py \
   --config configs/tabpfn/local_smoke.yaml \
   --data-dir data/raw \
   --folds-dir data/folds \
@@ -231,7 +231,7 @@ To evaluate a specific TabPFN checkpoint or weights file, add:
 Fine-tune TabPFN for one horizon/fold:
 
 ```bash
-uv run --extra tabpfn python scripts/finetune_tabpfn.py \
+uv run --extra tabpfn --extra rapids python scripts/finetune_tabpfn.py \
   --config configs/tabpfn/finetune_prototype_undersample.yaml \
   --data-dir data/raw \
   --folds-dir data/folds \
@@ -240,6 +240,24 @@ uv run --extra tabpfn python scripts/finetune_tabpfn.py \
   --model-path /path/to/tabpfn_checkpoint.ckpt \
   --device cuda
 ```
+
+Fine-tune one horizon-conditioned TabPFN model for a fold by joining all
+horizon splits and adding `prediction_horizon` as a numeric feature:
+
+```bash
+uv run --extra tabpfn --extra rapids python scripts/finetune_tabpfn_horizon_conditioned.py \
+  --config configs/tabpfn/finetune_horizon_conditioned.yaml \
+  --data-dir data/raw \
+  --folds-dir data/folds \
+  --horizons all \
+  --fold 0 \
+  --model-path /path/to/tabpfn_checkpoint.ckpt \
+  --device cuda
+```
+
+Prototype undersampling uses `prototype_backend`; the prototype TabPFN configs
+default to `cuml`, which requires the `rapids` extra and runs both KMeans and
+nearest-row lookup on GPU. Use `--prototype-backend sklearn` to force CPU.
 
 Aggregate fine-tuning best epochs:
 

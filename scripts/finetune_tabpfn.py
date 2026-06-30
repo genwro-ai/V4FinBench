@@ -35,7 +35,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--target-col", default="main_label")
     parser.add_argument("--model-path", default=None)
     parser.add_argument("--device", default=None)
+    parser.add_argument(
+        "--prototype-backend",
+        choices=["cuml", "sklearn"],
+        default=None,
+    )
+    parser.add_argument("--prototype-device", default=None, help=argparse.SUPPRESS)
     parser.add_argument("--epochs", type=int, default=None)
+    parser.add_argument("--eval-batch-size", type=int, default=None)
     parser.add_argument("--max-train-samples", type=int, default=None)
     parser.add_argument("--max-eval-samples", type=int, default=None)
     return parser.parse_args()
@@ -47,7 +54,9 @@ def main() -> None:
     overrides = {
         "model_path": args.model_path,
         "device": args.device,
+        "prototype_backend": args.prototype_backend or args.prototype_device,
         "epochs": args.epochs,
+        "eval_batch_size": args.eval_batch_size,
         "max_train_samples": args.max_train_samples,
         "max_eval_samples": args.max_eval_samples,
     }
@@ -67,6 +76,8 @@ def main() -> None:
     output_dir = args.out / f"h{args.horizon}" / f"fold_{args.fold}"
     _remove_if_exists(output_dir / "metrics.csv")
     _remove_if_exists(output_dir / "best_epoch.json")
+    _remove_if_exists(output_dir / "best_epoch.pt")
+    _remove_matching(output_dir, "epoch_*.pt")
     results = finetune_evaluate_tabpfn(
         df=df,
         train_idx=train_idx,
@@ -110,6 +121,12 @@ def _load_split_indices(
 def _remove_if_exists(path: Path) -> None:
     if path.exists():
         path.unlink()
+
+
+def _remove_matching(directory: Path, pattern: str) -> None:
+    for path in directory.glob(pattern):
+        if path.is_file():
+            path.unlink()
 
 
 if __name__ == "__main__":

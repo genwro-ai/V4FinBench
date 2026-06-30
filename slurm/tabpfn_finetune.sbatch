@@ -11,12 +11,13 @@
 set -euo pipefail
 
 cd "${SLURM_SUBMIT_DIR}"
+source scripts/athena_env.sh
 
 MODEL_PATH="${MODEL_PATH:?Set MODEL_PATH to the TabPFN checkpoint path}"
 HORIZON=$((SLURM_ARRAY_TASK_ID / 5))
 FOLD=$((SLURM_ARRAY_TASK_ID % 5))
 
-uv run --extra tabpfn python scripts/finetune_tabpfn.py \
+uv run --extra tabpfn --extra rapids python scripts/finetune_tabpfn.py \
   --config "${CONFIG:-configs/tabpfn/finetune_prototype_undersample.yaml}" \
   --data-dir "${DATA_DIR:-data/raw}" \
   --folds-dir "${FOLDS_DIR:-data/folds}" \
