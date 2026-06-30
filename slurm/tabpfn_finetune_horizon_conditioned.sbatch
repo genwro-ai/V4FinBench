@@ -6,6 +6,8 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=80G
 #SBATCH --gres=gpu:1
+#SBATCH --account=plgfoundationeconom-gpu-a100
+#SBATCH --partition=plgrid-gpu-a100
 #SBATCH --array=0-4%2
 
 set -euo pipefail
