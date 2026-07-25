@@ -249,6 +249,12 @@ def clone_tabpfn_for_evaluation(classifier, classifier_config: dict[str, Any]):
             "SUBSAMPLE_SAMPLES": classifier_config.get("SUBSAMPLE_SAMPLES", 10_000)
         },
     }
+    # clone_model_for_evaluation derives the model spec from the fitted
+    # classifier and passes model_path itself. Leaving the key in the config
+    # raises "got multiple values for keyword argument 'model_path'" (only
+    # visible when a --model-path is provided, hence not caught by the
+    # model_path-less smoke test).
+    eval_config.pop("model_path", None)
     return clone_model_for_evaluation(classifier, eval_config, TabPFNClassifier)
 
 

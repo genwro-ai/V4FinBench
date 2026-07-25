@@ -8,7 +8,7 @@ minority_to_majority_ratio: 0.3
 model_path: null
 device: auto
 loss_function: cross_entropy
-save_checkpoints: false
+save_checkpoints: true
 finetuning:
   learning_rate: 0.000005
   epochs: 10
