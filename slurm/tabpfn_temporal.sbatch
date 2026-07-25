@@ -49,6 +49,9 @@ cd "${SLURM_SUBMIT_DIR}"
 # Nothing downloads at job time.
 export HF_HUB_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
+# Stream stdout to the log file in real time (Python block-buffers
+# redirected stdout otherwise).
+export PYTHONUNBUFFERED=1
 # Reduce CUDA allocator fragmentation for the large eval forwards.
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
