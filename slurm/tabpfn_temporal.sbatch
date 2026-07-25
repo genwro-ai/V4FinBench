@@ -46,17 +46,32 @@ set -euo pipefail
 
 cd "${SLURM_SUBMIT_DIR}"
 
-# Same caches and virtualenv as slurm/setup_athena.sh ($HOME quota is 10 GB,
-# so everything lives in $SCRATCH).
-source slurm/athena_env.sh
-
-# The environment is fully synced by setup_athena.sh - do not resolve or
-# download anything at job time.
-export UV_OFFLINE=1
+# Nothing downloads at job time.
 export HF_HUB_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
 
-MODEL_PATH="${MODEL_PATH:?Set MODEL_PATH to the TabPFN checkpoint path}"
+# Prefer the pre-existing virtualenv (VENV) when available; fall back to the
+# uv-managed environment from slurm/setup_athena.sh otherwise. PYTHONPATH
+# makes the repo's package importable regardless of how the venv was built.
+VENV="${VENV:-/net/tscratch/people/plgmarcinkostrzewa/.venvs/V4FinBench}"
+if [[ -f "${VENV}/bin/activate" ]]; then
+  echo "Using existing venv: ${VENV}"
+  # shellcheck disable=SC1091
+  source "${VENV}/bin/activate"
+  RUN=(python)
+else
+  echo "VENV not found, using uv environment from setup_athena.sh"
+  source slurm/athena_env.sh
+  export UV_OFFLINE=1
+  RUN=(uv run --no-sync --extra tabpfn python)
+fi
+export PYTHONPATH="${SLURM_SUBMIT_DIR}/src:${PYTHONPATH:-}"
+
+MODEL_PATH="${MODEL_PATH:-/net/tscratch/people/plgmarcinkostrzewa/V4FinBench/models/tabpfn.ckpt}"
+if [[ ! -f "${MODEL_PATH}" ]]; then
+  echo "MODEL_PATH not found: ${MODEL_PATH}" >&2
+  exit 1
+fi
 CELLS_FILE="${CELLS_FILE:-data/temporal_splits/cells.txt}"
 
 if [[ ! -f "${CELLS_FILE}" ]]; then
@@ -73,7 +88,7 @@ fi
 read -r HORIZON ORIGIN TEST_YEAR <<< "$(sed -n "$((SLURM_ARRAY_TASK_ID + 1))p" "${CELLS_FILE}")"
 echo "Cell: horizon=${HORIZON} origin=${ORIGIN} test_year=${TEST_YEAR}"
 
-uv run --extra tabpfn python scripts/finetune_tabpfn.py \
+"${RUN[@]}" scripts/finetune_tabpfn.py \
   --config "${CONFIG:-configs/tabpfn/finetune_prototype_undersample.yaml}" \
   --data-dir "${DATA_DIR:-data/processed}" \
   --folds-dir "${FOLDS_DIR:-data/temporal_splits}" \
