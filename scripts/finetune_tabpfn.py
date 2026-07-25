@@ -33,6 +33,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--horizon", type=int, required=True)
     parser.add_argument("--fold", type=int, required=True)
     parser.add_argument("--target-col", default="main_label")
+    parser.add_argument(
+        "--drop-cols",
+        default="",
+        help="Comma-separated columns to drop from the data before training "
+        "(e.g. 'year' for temporal splits, where the raw year must not be "
+        "a feature). Dropping columns does not affect row order, so split "
+        "indices remain valid.",
+    )
     parser.add_argument("--model-path", default=None)
     parser.add_argument("--device", default=None)
     parser.add_argument("--epochs", type=int, default=None)
@@ -59,6 +67,10 @@ def main() -> None:
         raise FileNotFoundError(f"Missing horizon data file: {data_path}")
     print(f"Loading paper horizon h={args.horizon}: {data_path}", flush=True)
     df = pd.read_parquet(data_path)
+    drop_cols = [c for c in args.drop_cols.split(",") if c and c in df.columns]
+    if drop_cols:
+        df = df.drop(columns=drop_cols)
+        print(f"Dropped columns: {drop_cols}", flush=True)
     train_idx, val_idx, test_idx = _load_split_indices(
         args.folds_dir / f"h{args.horizon}",
         args.fold,
@@ -83,6 +95,11 @@ def main() -> None:
         json.dumps([finetune_result_to_row(result) for result in results], indent=2),
         encoding="utf-8",
     )
+    # When per-epoch checkpoints are enabled, keep only the best epoch's
+    # weights (the one whose threshold and test metrics are reported).
+    for checkpoint in output_dir.glob("epoch_*.pt"):
+        if checkpoint.stem != f"epoch_{best.epoch}":
+            checkpoint.unlink()
     print(
         f"Best epoch={best.epoch}: validation_f1={best.validation_f1:.4f}, "
         f"test_f1={best.metrics['f1']:.4f}, "

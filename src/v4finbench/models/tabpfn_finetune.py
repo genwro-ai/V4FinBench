@@ -48,6 +48,9 @@ class TabPFNFinetuneEpochResult:
     n_context_samples: int
     validation_f1: float
     metrics: dict[str, float]
+    # Per-instance test probabilities for this epoch; kept out of the metrics
+    # CSV and written to test_scores.parquet for the best epoch only.
+    test_scores: np.ndarray | None = None
 
 
 ClassifierFactory = Callable[[TabPFNFinetuneConfig], Any]
@@ -134,7 +137,23 @@ def finetune_evaluate_tabpfn(
                 save_tabpfn_torch_state(output_dir, classifier, epoch)
 
     if output_dir is not None:
-        write_best_epoch(output_dir, select_best_epoch(results))
+        best = select_best_epoch(results)
+        write_best_epoch(output_dir, best)
+        if best.test_scores is not None:
+            # Reproduce the deterministic test subsample from _prepare_arrays
+            # so row_idx maps back to rows of the source parquet file.
+            effective_test_idx = subsample_indices(
+                test_idx,
+                config.max_eval_samples,
+                config.random_state + 2,
+            )
+            pd.DataFrame(
+                {
+                    "row_idx": np.asarray(effective_test_idx, dtype=np.int64),
+                    "y_true": np.asarray(y_test, dtype=np.int64),
+                    "score": best.test_scores,
+                }
+            ).to_parquet(Path(output_dir) / "test_scores.parquet", index=False)
     return results
 
 
@@ -176,6 +195,7 @@ def evaluate_finetuned_tabpfn(
         n_context_samples=len(y_context),
         validation_f1=val_metrics["f1"],
         metrics=metrics,
+        test_scores=test_score,
     )
 
 
