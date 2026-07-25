@@ -236,6 +236,7 @@ def make_finetunable_tabpfn_classifier(
 
 def clone_tabpfn_for_evaluation(classifier, classifier_config: dict[str, Any]):
     try:
+        import torch
         from tabpfn import TabPFNClassifier
         from tabpfn.finetune_utils import clone_model_for_evaluation
     except ImportError as exc:
@@ -248,6 +249,12 @@ def clone_tabpfn_for_evaluation(classifier, classifier_config: dict[str, Any]):
         "inference_config": {
             "SUBSAMPLE_SAMPLES": classifier_config.get("SUBSAMPLE_SAMPLES", 10_000)
         },
+        # Evaluation must run in float32: with bfloat16 inference precision,
+        # TabPFN's label encoder calls torch.unique on a BFloat16 tensor on
+        # the CUDA path, and torch has no BFloat16 kernel for unique
+        # ('"unique" not implemented for BFloat16'). Finetuning keeps
+        # bfloat16, where the throughput matters.
+        "inference_precision": torch.float32,
     }
     # clone_model_for_evaluation derives the model spec from the fitted
     # classifier and passes model_path itself. Leaving the key in the config
