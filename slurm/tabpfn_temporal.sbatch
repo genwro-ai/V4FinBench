@@ -49,6 +49,8 @@ cd "${SLURM_SUBMIT_DIR}"
 # Nothing downloads at job time.
 export HF_HUB_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
+# Reduce CUDA allocator fragmentation for the large eval forwards.
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 # Prefer the pre-existing virtualenv (VENV) when available; fall back to the
 # uv-managed environment from slurm/setup_athena.sh otherwise. PYTHONPATH
