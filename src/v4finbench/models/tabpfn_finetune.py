@@ -48,6 +48,9 @@ class TabPFNFinetuneEpochResult:
     n_context_samples: int
     validation_f1: float
     metrics: dict[str, float]
+    # Per-instance test probabilities for this epoch; kept out of the metrics
+    # CSV and written to test_scores.parquet for the best epoch only.
+    test_scores: np.ndarray | None = None
 
 
 ClassifierFactory = Callable[[TabPFNFinetuneConfig], Any]
@@ -134,8 +137,45 @@ def finetune_evaluate_tabpfn(
                 save_tabpfn_torch_state(output_dir, classifier, epoch)
 
     if output_dir is not None:
-        write_best_epoch(output_dir, select_best_epoch(results))
+        best = select_best_epoch(results)
+        write_best_epoch(output_dir, best)
+        if best.test_scores is not None:
+            # Reproduce the deterministic test subsample from _prepare_arrays
+            # so row_idx maps back to rows of the source parquet file.
+            effective_test_idx = subsample_indices(
+                test_idx,
+                config.max_eval_samples,
+                config.random_state + 2,
+            )
+            pd.DataFrame(
+                {
+                    "row_idx": np.asarray(effective_test_idx, dtype=np.int64),
+                    "y_true": np.asarray(y_test, dtype=np.int64),
+                    "score": best.test_scores,
+                }
+            ).to_parquet(Path(output_dir) / "test_scores.parquet", index=False)
     return results
+
+
+def _predict_proba_batched(
+    classifier,
+    X: np.ndarray,
+    batch_size: int = 32_768,
+) -> np.ndarray:
+    """Positive-class probabilities, predicted in query chunks.
+
+    A single predict_proba over a large query set materializes the full
+    (context + query) sequence in one transformer forward: with float32
+    precision and ~200k query rows that is a >20 GiB single allocation,
+    which does not fit next to the model on a 40 GB A100. Chunking bounds
+    peak memory at any precision, at the cost of re-encoding the context
+    per chunk.
+    """
+    scores = [
+        classifier.predict_proba(X[start:start + batch_size])[:, 1]
+        for start in range(0, len(X), batch_size)
+    ]
+    return np.concatenate(scores) if scores else np.empty(0, dtype=np.float64)
 
 
 def evaluate_finetuned_tabpfn(
@@ -161,11 +201,11 @@ def evaluate_finetuned_tabpfn(
     )
     eval_classifier.fit(X_context, y_context)
 
-    val_score = eval_classifier.predict_proba(X_val)[:, 1]
+    val_score = _predict_proba_batched(eval_classifier, X_val)
     threshold = find_best_f1_threshold(y_val, val_score)
     val_metrics = binary_classification_metrics(y_val, val_score, threshold)
 
-    test_score = eval_classifier.predict_proba(X_test)[:, 1]
+    test_score = _predict_proba_batched(eval_classifier, X_test)
     metrics = binary_classification_metrics(y_test, test_score, threshold)
     return TabPFNFinetuneEpochResult(
         model="tabpfn_finetuned",
@@ -176,6 +216,7 @@ def evaluate_finetuned_tabpfn(
         n_context_samples=len(y_context),
         validation_f1=val_metrics["f1"],
         metrics=metrics,
+        test_scores=test_score,
     )
 
 
@@ -195,7 +236,13 @@ def make_finetunable_tabpfn_classifier(
         "ignore_pretraining_limits": True,
         "n_estimators": 1,
         "random_state": config.random_state,
-        "inference_precision": torch.bfloat16,
+        # float32 throughout: with bfloat16 inference precision, current
+        # TabPFN versions route a BFloat16 label tensor into torch.unique
+        # inside the y-encoder ('"unique" not implemented for BFloat16'),
+        # which breaks both the finetuning forward pass and evaluation on
+        # CUDA. On an A100 the fp32 slowdown is modest and stays well
+        # within the batch walltime.
+        "inference_precision": torch.float32,
     }
     if config.device != "auto":
         classifier_config["device"] = config.device
@@ -216,6 +263,7 @@ def make_finetunable_tabpfn_classifier(
 
 def clone_tabpfn_for_evaluation(classifier, classifier_config: dict[str, Any]):
     try:
+        import torch
         from tabpfn import TabPFNClassifier
         from tabpfn.finetune_utils import clone_model_for_evaluation
     except ImportError as exc:
@@ -228,7 +276,19 @@ def clone_tabpfn_for_evaluation(classifier, classifier_config: dict[str, Any]):
         "inference_config": {
             "SUBSAMPLE_SAMPLES": classifier_config.get("SUBSAMPLE_SAMPLES", 10_000)
         },
+        # Evaluation must run in float32: with bfloat16 inference precision,
+        # TabPFN's label encoder calls torch.unique on a BFloat16 tensor on
+        # the CUDA path, and torch has no BFloat16 kernel for unique
+        # ('"unique" not implemented for BFloat16'). Finetuning keeps
+        # bfloat16, where the throughput matters.
+        "inference_precision": torch.float32,
     }
+    # clone_model_for_evaluation derives the model spec from the fitted
+    # classifier and passes model_path itself. Leaving the key in the config
+    # raises "got multiple values for keyword argument 'model_path'" (only
+    # visible when a --model-path is provided, hence not caught by the
+    # model_path-less smoke test).
+    eval_config.pop("model_path", None)
     return clone_model_for_evaluation(classifier, eval_config, TabPFNClassifier)
 
 

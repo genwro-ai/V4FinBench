@@ -54,6 +54,14 @@ class TabularPreprocessor:
         numeric_cols = list(X_train.select_dtypes(include=["number", "bool"]).columns)
         numeric_train = X_train[numeric_cols].apply(pd.to_numeric, errors="coerce")
         medians = numeric_train.median()
+        # Columns with no observed training values (e.g. year-over-year
+        # growth features when the training window is the panel's first
+        # year) have NaN medians. Impute them as constant zero so every
+        # split keeps the full feature width: leaving them NaN crashes
+        # NaN-intolerant models and makes TabPFN's internal pipeline drop
+        # the columns at fit time, breaking the train/predict feature-count
+        # contract. A no-op whenever every column has observed values.
+        medians = medians.fillna(0.0)
         scaler = StandardScaler()
         scaler.fit(numeric_train.fillna(medians))
 
