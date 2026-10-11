@@ -1,5 +1,3 @@
-from typing import Literal
-
 import numpy as np
 import pandas as pd
 
@@ -11,8 +9,6 @@ from v4finbench.data.schema import (
     YEAR_COL,
 )
 
-LabelMode = Literal["exact", "within"]
-
 
 def meets_distress_criterion(df: pd.DataFrame) -> pd.Series:
     return (
@@ -22,16 +18,9 @@ def meets_distress_criterion(df: pd.DataFrame) -> pd.Series:
     )
 
 
-def create_horizon_labels(
-    df: pd.DataFrame,
-    horizon: int,
-    mode: LabelMode = "exact",
-    drop_censored: bool = True,
-) -> pd.DataFrame:
+def create_horizon_labels(df: pd.DataFrame, horizon: int) -> pd.DataFrame:
     if horizon < 1:
         raise ValueError(f"horizon must be at least 1, got {horizon}")
-    if mode not in ("exact", "within"):
-        raise ValueError(f"Unknown label mode: {mode}")
     duplicated = df.duplicated([FIRM_COL, YEAR_COL])
     if duplicated.any():
         raise ValueError(f"{int(duplicated.sum())} duplicated firm-year rows")
@@ -50,22 +39,12 @@ def create_horizon_labels(
     has_event = final_distressed & (last_year < TERMINAL_YEAR)
     target_year = year + horizon
 
-    if mode == "exact":
-        positive = has_event & (target_year == last_year)
-    else:
-        positive = has_event & (year < last_year) & (last_year <= target_year)
-
+    positive = has_event & (target_year == last_year)
     negative = (target_year < last_year) | (
         ~has_event
         & (target_year == last_year)
         & ~((last_year == TERMINAL_YEAR) & final_distressed)
     )
-    if not drop_censored:
-        negative |= (
-            ~has_event
-            & (target_year > last_year)
-            & (target_year <= TERMINAL_YEAR)
-        )
 
     keep = positive | negative
     labeled = df.loc[keep].copy()
@@ -86,7 +65,7 @@ def _label_observed_year(
     target_year: np.ndarray,
     event_year: np.ndarray,
     reports: pd.DataFrame,
-) -> pd.arrays.IntegerArray:
+) -> np.ndarray:
     queries = pd.DataFrame(
         {FIRM_COL: firms, "_target_year": target_year, "_row": np.arange(len(firms))}
     )
@@ -111,5 +90,4 @@ def _label_observed_year(
     next_year = next_report["_report_year"].to_numpy(dtype=float)
 
     observed = np.where(healthy_at_target, target_year, next_year)
-    observed = np.where(np.isnan(event_year), observed, event_year)
-    return pd.array(observed, dtype="Int64")
+    return np.where(np.isnan(event_year), observed, event_year).astype(np.int64)

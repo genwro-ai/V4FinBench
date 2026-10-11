@@ -1,4 +1,7 @@
 import json
+import os
+import platform
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -53,6 +56,18 @@ def upsert_rows(
     merged = new.drop_duplicates(subset=key, keep="last")
     merged.to_csv(path, index=False)
     return merged
+
+
+def hardware() -> dict[str, Any]:
+    info: dict[str, Any] = {
+        "host": platform.node(),
+        "machine": platform.machine(),
+        "n_cpus": os.cpu_count(),
+    }
+    torch = sys.modules.get("torch")
+    if torch is not None and torch.cuda.is_available():
+        info["gpu"] = torch.cuda.get_device_name()
+    return info
 
 
 def write_test_scores(path: str | Path, result: RunResult, df: pd.DataFrame) -> Path:

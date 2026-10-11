@@ -21,8 +21,9 @@ COLUMNS_TO_DROP = [
     "EBITDA/cash_flow",
     YEAR_COL,
     LABEL_YEAR_COL,
-    # firm-level snapshot from data extraction time: look-ahead leakage
+    # firm-level snapshots from data extraction time: look-ahead leakage
     "operational_status",
+    "number_of_employees",
 ]
 
 

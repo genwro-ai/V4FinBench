@@ -13,8 +13,9 @@ preprint code, and why. Full definitions are in
 - Horizon `h = 0` (current-year distress) was dropped; horizons are `h = 1..5`.
 - TabPFN is out of scope for now (to be revisited with TabPFN 3.5, TabICL and
   proper tuning). Its code is kept but was not re-run.
-- Slurm and bash reproduction scripts were removed; Athena scripts will be
-  written later.
+- Slurm and bash reproduction scripts and the Kaggle download script were
+  removed; Athena scripts will be written later.
+- The country-transfer experiment is out of scope for now.
 
 ## Labels
 
@@ -39,9 +40,9 @@ status in year `s = t + h`.
 **Event.** Unchanged: the firm's final report, filed before 2021, has negative
 equity, negative EBITDA and a current ratio of at most 0.6.
 
-**Label modes.** `exact` (default, as in the preprint): positive iff the event
-is in `s`. `within` (alternative, for comparison): positive iff the event is in
-`(t, s]`.
+**Label.** As in the preprint, a row is positive iff the event is in year `s`
+("distress exactly `h` years ahead"). An alternative "within `h` years" label
+was considered and dropped.
 
 **Dropped rows.**
 - `s > 2021` (beyond the panel);
@@ -49,9 +50,8 @@ is in `s`. `within` (alternative, for comparison): positive iff the event is in
   final);
 - rows at or after the event (other than the positive itself);
 - **censored rows**, where the firm stopped reporting without distress before
-  `s`. Previously these were negatives. They are now dropped by default
-  (`--keep-censored` restores the old behaviour). This removes 9–21% of the
-  labelable rows (93.5k at `h = 1`, up to 139k at `h = 4`); about half of all
+  `s`. Previously these were negatives; they are now always dropped. This
+  removes 9–21% of the labelable rows (93.5k at `h = 1`, up to 139k at `h = 4`); about half of all
   firms leave the panel while healthy, which looks like coverage churn rather
   than real outcomes.
 
@@ -64,7 +64,7 @@ after `s`). The split uses it to keep not-yet-known labels out of training.
 Kaggle files were shifted by one). The repository is the source of truth; the
 Kaggle dataset will be re-released from it. `verify_labels.py` was removed.
 
-Resulting sizes (`exact`, censored dropped):
+Resulting sizes:
 
 | h | Rows | Positives | Positive rate |
 | --- | --- | --- | --- |
@@ -77,10 +77,14 @@ Resulting sizes (`exact`, censored dropped):
 ## Features
 
 Not used as features: identifiers and free text, three degenerate ratios,
-`year`, `label_observed_year`, and **`operational_status`**. The latter is a
-firm-level snapshot from data extraction time (it changes for only 154 firms;
-firms with status 0 have a 5.6× higher positive rate), i.e. look-ahead leakage
-under a chronological protocol. Median imputation and standardization fit on the
+`year`, `label_observed_year`, **`operational_status`** and
+**`number_of_employees`**. Both are firm-level snapshots from data extraction
+time, i.e. look-ahead leakage under a chronological protocol:
+`operational_status` changes for only 154 firms and status 0 has a 5.6× higher
+positive rate; `number_of_employees` changes for only 4,128 of 203,900 firms and
+its band 0 has a 4× higher positive rate. `legal_form` and `state` are also
+nearly constant but show no strong link to the label and are kept; the
+`*_Sector` features are computed per year. Median imputation and standardization fit on the
 training rows are kept for now.
 
 ## Time splits
@@ -115,8 +119,11 @@ the label files, so they cannot go stale. Test years start in 2013 because the
 ## Baselines and tuning
 
 - Models: logistic regression, XGBoost, LightGBM, CatBoost, **RealMLP**
-  (priority) and **TabM**, the last two via `pytabkit` with their published
-  tuned defaults. The sklearn MLP and random forest were removed.
+  (priority) and **TabM**, the last two via `pytabkit`. RealMLP is tuned over
+  its published search space (Holzmüller et al., 2024), on Athena GPUs; TabM
+  runs with its tuned defaults. The sklearn MLP and random forest were removed.
+- Compute: logistic regression and the GBDTs fit locally (about 7–8 hours for
+  all 25 cells with 40 trials); RealMLP tuning needs Athena.
 - The old fixed grids (100–200 trees, depth and learning rate only) were poorly
   shaped: on a diagnostic split every model preferred the lowest-capacity corner
   and validation PR-AUC peaked after 20–100 trees, i.e. the issue is overfitting
@@ -131,6 +138,12 @@ the label files, so they cannot go stale. Test years start in 2013 because the
   Both ROC-AUC and PR-AUC are reported.
 - RealMLP and TabM select their best epoch on validation cross-entropy, without
   label smoothing, as the RealMLP authors recommend for AUC-type targets.
+- All models use a single seed (42), as the earlier MLP baseline did.
+- Each (model, horizon, test year) writes its own score and metrics files
+  (with timings and hardware); finished cells are skipped, so jobs can run in
+  parallel and be resubmitted.
+- The evaluation also reports metrics separately for firms seen and not seen in
+  training.
 
 ## Open items
 

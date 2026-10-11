@@ -75,7 +75,7 @@ def run_baseline(
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
         joblib.dump(model, output_dir / f"{model_name}.joblib")
-        (output_dir / f"{model_name}.json").write_text(
+        (output_dir / f"{model_name}.params.json").write_text(
             json.dumps({"params": best["params"], "threshold": threshold}, indent=2),
             encoding="utf-8",
         )
@@ -100,7 +100,10 @@ def run_baseline(
     )
 
 
-def suggest(trial: optuna.Trial, name: str, space: dict[str, Any]) -> int | float:
+def suggest(trial: optuna.Trial, name: str, space: dict[str, Any]) -> Any:
+    if "choices" in space:
+        index = trial.suggest_categorical(name, list(range(len(space["choices"]))))
+        return space["choices"][index]
     low, high, log = space["low"], space["high"], space.get("log", False)
     if isinstance(low, int) and isinstance(high, int):
         return trial.suggest_int(name, low, high, log=log)

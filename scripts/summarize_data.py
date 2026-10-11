@@ -4,7 +4,7 @@ from pathlib import Path
 import pandas as pd
 
 from v4finbench.data.io import read_horizon
-from v4finbench.data.schema import FIRM_COL, HORIZONS, TARGET_COL, YEAR_COL
+from v4finbench.data.schema import COUNTRIES, FIRM_COL, HORIZONS, TARGET_COL, YEAR_COL
 
 
 def parse_args() -> argparse.Namespace:
@@ -33,6 +33,7 @@ def main() -> None:
         read_horizon(args.data_dir, horizon)[columns].assign(horizon=horizon)
         for horizon in HORIZONS
     )
+    labeled["country"] = labeled["country"].map(COUNTRIES)
     args.out.mkdir(parents=True, exist_ok=True)
     for name, by in {
         "by_horizon": ["horizon"],

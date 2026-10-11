@@ -15,16 +15,11 @@ Code: MIT. Dataset on Kaggle: CC BY 4.0.
 
 ## Data
 
-Download the Kaggle dataset into `data/raw/`:
+Download `company_years.parquet` from the Kaggle dataset into `data/raw/`:
 
 https://www.kaggle.com/datasets/sebastiantomczak10/v4-group-corporate-bankruptcy/data
 
-```bash
-uv sync --extra kaggle
-uv run python scripts/download_kaggle.py --out data/raw
-```
-
-Only `data/raw/company_years.parquet` is used. Horizon labels are rebuilt from it
+Only this file is used. Horizon labels are rebuilt from it
 into `data/processed/company_years_h{1..5}.parquet`.
 
 ## Protocol in brief

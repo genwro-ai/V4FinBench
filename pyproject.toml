@@ -33,9 +33,6 @@ tabpfn = [
     "tabpfn-common-utils==0.2.10",
     "tabpfn-extensions==0.2.2",
 ]
-kaggle = [
-    "kagglehub>=0.3.0",
-]
 neural = [
     "pytabkit>=1.7",
 ]

@@ -15,9 +15,7 @@ uv run python scripts/build_temporal_splits.py
 uv run python scripts/summarize_data.py
 ```
 
-`build_labels.py` takes `--mode within` for the alternative label definition and
-`--keep-censored` to keep censored rows as negatives. `build_temporal_splits.py`
-writes `data/temporal_splits/split_definition.json` and `cells.txt`;
+`build_temporal_splits.py` writes `data/temporal_splits/split_definition.json` and `cells.txt`;
 `summarize_data.py` writes row and positive counts by horizon, country and year
 to `results/generated/data_summary/`.
 
@@ -56,15 +54,22 @@ best epoch's `test_scores.parquet` to `results/generated/tabpfn_finetune/h{h}/Y{
 
 ## Outputs and evaluation
 
-Every runner writes per-split metrics to `metrics.csv` and per-row test scores
-to parquet files (model, horizon, test year, `emis_id`, label, score, thresholded
-prediction). Summarize them with confidence intervals:
+`run_baselines.py` writes one pair of files per model and split under
+`results/generated/baselines/h{h}/Y{Y}/`: `{model}.parquet` with per-row test
+scores (model, horizon, test year, `emis_id`, label, score, thresholded
+prediction, unseen-firm flag) and `{model}.metrics.json` with the split's
+metrics, selected hyperparameters, timings and hardware. Existing cells are
+skipped unless `--overwrite` is given, so jobs can run in parallel and be
+resubmitted.
+
+Summarize with confidence intervals:
 
 ```bash
-uv run python scripts/evaluate.py --scores results/generated
-uv run python scripts/evaluate.py --scores results/generated --all-years
+uv run python scripts/evaluate.py
+uv run python scripts/evaluate.py --all-years
 ```
 
-This writes `{primary,all_years}_summary.csv` (metrics with 95% intervals per
-model and horizon) and `{primary,all_years}_paired.csv` (paired model
-differences) to `results/generated/summary/`.
+This writes to `results/generated/summary/`:
+`{primary,all_years}_summary.csv` (metrics with 95% intervals per model and
+horizon, for all, seen and unseen firms), `{primary,all_years}_paired.csv`
+(paired model differences) and `per_split.csv` (one row per model and split).

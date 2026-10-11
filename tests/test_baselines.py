@@ -23,6 +23,10 @@ def test_suggest_infers_int_and_float_ranges() -> None:
 
     assert isinstance(suggest(trial, "depth", {"low": 2, "high": 8}), int)
     assert isinstance(suggest(trial, "lr", {"low": 0.01, "high": 0.1}), float)
+    assert suggest(trial, "sizes", {"choices": [[256, 256], [512]]}) in (
+        [256, 256],
+        [512],
+    )
 
 
 @pytest.mark.parametrize("model_name", ["logistic_regression", "xgboost"])

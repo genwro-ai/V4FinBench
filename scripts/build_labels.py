@@ -16,20 +16,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--horizons", type=int, nargs="+", choices=HORIZONS, default=HORIZONS
     )
-    parser.add_argument("--mode", choices=["exact", "within"], default="exact")
-    parser.add_argument("--keep-censored", action="store_true")
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
     df = pd.read_parquet(args.input)
-    print(f"{len(df):,} rows, {df[FIRM_COL].nunique():,} firms, mode={args.mode}")
+    print(f"{len(df):,} rows, {df[FIRM_COL].nunique():,} firms")
     args.out.mkdir(parents=True, exist_ok=True)
     for horizon in args.horizons:
-        labeled = create_horizon_labels(
-            df, horizon, args.mode, drop_censored=not args.keep_censored
-        )
+        labeled = create_horizon_labels(df, horizon)
         path = args.out / horizon_file(horizon)
         labeled.to_parquet(path, index=False)
         print(

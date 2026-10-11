@@ -13,7 +13,6 @@ def _frame(first_year: int, horizon: int = 1, positives: bool = True) -> pd.Data
         for label in (0, int(positives))
     ]
     df = pd.DataFrame(rows, columns=["year", "main_label", "label_observed_year"])
-    df["label_observed_year"] = df["label_observed_year"].astype("Int64")
     return df
 
 
@@ -39,12 +38,12 @@ def test_training_labels_must_resolve_by_test_year(small_splits: SplitConfig) ->
     assert max(_years(df, split.train_idx)) == 2008
 
 
-def test_unobserved_labels_never_enter_training(small_splits: SplitConfig) -> None:
+def test_late_observed_labels_stay_out_of_training(small_splits: SplitConfig) -> None:
     df = _frame(2006)
-    df.loc[df["year"] == 2007, "label_observed_year"] = pd.NA
+    df.loc[df["year"] == 2009, "label_observed_year"] = 2013
     split = get_split(df, 1, 2012, small_splits)
 
-    assert _years(df, split.train_idx) == {2006, 2008, 2009}
+    assert _years(df, split.train_idx) == {2006, 2007, 2008}
 
 
 def test_availability_margin_shifts_windows_back(small_splits: SplitConfig) -> None:

@@ -1,3 +1,4 @@
+import warnings
 from dataclasses import dataclass
 from itertools import combinations
 
@@ -61,11 +62,13 @@ class _RankedYear:
 
 def _model_metrics(years: list[_RankedYear], firm_weight: np.ndarray) -> np.ndarray:
     weighted = [(year, firm_weight[year.firm]) for year in years]
-    ranking = np.mean([year.ranking_metrics(w) for year, w in weighted], axis=0)
-    tp, fp, fn = np.sum([year.counts(w) for year, w in weighted], axis=0)
-    precision = tp / (tp + fp) if tp + fp else 0.0
-    recall = tp / (tp + fn)
-    f1 = 2 * tp / (2 * tp + fp + fn)
+    with np.errstate(divide="ignore", invalid="ignore"), warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)
+        ranking = np.nanmean([year.ranking_metrics(w) for year, w in weighted], axis=0)
+        tp, fp, fn = np.sum([year.counts(w) for year, w in weighted], axis=0)
+        precision = tp / (tp + fp) if tp + fp else 0.0
+        recall = tp / (tp + fn)
+        f1 = 2 * tp / (2 * tp + fp + fn)
     return np.r_[ranking, precision, recall, f1]
 
 
@@ -94,13 +97,12 @@ def evaluate_scores(
             for model, years in models.items()
         }
         boot = {model: np.empty((n_boot, len(METRICS))) for model in models}
-        with np.errstate(divide="ignore", invalid="ignore"):
-            for b in range(n_boot):
-                firm_weight = np.bincount(
-                    rng.integers(0, len(firms), len(firms)), minlength=len(firms)
-                ).astype(float)
-                for model, years in models.items():
-                    boot[model][b] = _model_metrics(years, firm_weight)
+        for b in range(n_boot):
+            firm_weight = np.bincount(
+                rng.integers(0, len(firms), len(firms)), minlength=len(firms)
+            ).astype(float)
+            for model, years in models.items():
+                boot[model][b] = _model_metrics(years, firm_weight)
 
         for model, years in models.items():
             low, high = np.nanquantile(boot[model], quantiles, axis=0)

@@ -36,7 +36,7 @@ def temporal_splits(
     config = config or SplitConfig()
     years = df[YEAR_COL].to_numpy()
     y = df[TARGET_COL].to_numpy()
-    observed = df[LABEL_YEAR_COL].to_numpy(dtype=float, na_value=np.inf)
+    observed = df[LABEL_YEAR_COL].to_numpy()
 
     splits = []
     for test_year in range(config.first_test_year, config.last_test_year + 1):

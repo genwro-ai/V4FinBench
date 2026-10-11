@@ -22,16 +22,16 @@ def _panel(firms: dict[str, dict[int, tuple[float, float, float]]]) -> pd.DataFr
     return pd.DataFrame(rows)
 
 
-def _labels(df: pd.DataFrame, horizon: int, **kwargs) -> dict[tuple[str, int], int]:
-    labeled = create_horizon_labels(df, horizon, **kwargs)
+def _labels(df: pd.DataFrame, horizon: int) -> dict[tuple[str, int], int]:
+    labeled = create_horizon_labels(df, horizon)
     return {
         (row.emis_id, row.year): row.main_label
         for row in labeled.itertuples(index=False)
     }
 
 
-def _observed(df: pd.DataFrame, horizon: int, **kwargs) -> dict[tuple[str, int], int]:
-    labeled = create_horizon_labels(df, horizon, **kwargs)
+def _observed(df: pd.DataFrame, horizon: int) -> dict[tuple[str, int], int]:
+    labeled = create_horizon_labels(df, horizon)
     return {
         (row.emis_id, row.year): row.label_observed_year
         for row in labeled.itertuples(index=False)
@@ -53,21 +53,6 @@ def test_gap_does_not_shift_positive_onto_another_year() -> None:
     assert _labels(df, 3) == {("d", 2014): 0, ("d", 2015): 1}
 
 
-def test_within_mode_labels_every_row_in_the_window() -> None:
-    df = _panel({"d": {2014: HEALTHY, 2015: HEALTHY, 2017: HEALTHY, 2018: DISTRESSED}})
-
-    assert _labels(df, 2, mode="within") == {
-        ("d", 2014): 0,
-        ("d", 2015): 0,
-        ("d", 2017): 1,
-    }
-    assert _labels(df, 3, mode="within") == {
-        ("d", 2014): 0,
-        ("d", 2015): 1,
-        ("d", 2017): 1,
-    }
-
-
 def test_composite_criterion_requires_all_three_conditions() -> None:
     df = _panel({"p": {2019: HEALTHY, 2020: (0.1, -0.5, 0.3)}})
 
@@ -86,15 +71,11 @@ def test_healthy_terminal_report_is_a_resolved_negative() -> None:
     assert _labels(df, 1) == {("o", 2020): 0}
 
 
-def test_healthy_exit_is_censored_unless_kept() -> None:
+def test_healthy_exit_is_censored() -> None:
     df = _panel({"c": {2015: HEALTHY, 2016: HEALTHY}})
 
+    assert _labels(df, 1) == {("c", 2015): 0}
     assert _labels(df, 2) == {}
-    assert _labels(df, 2, drop_censored=False) == {("c", 2015): 0, ("c", 2016): 0}
-    assert _observed(df, 2, drop_censored=False) == {
-        ("c", 2015): pd.NA,
-        ("c", 2016): pd.NA,
-    }
 
 
 def test_label_observed_year() -> None:

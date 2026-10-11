@@ -25,12 +25,8 @@ For horizon `h ∈ {1, …, 5}`, a row from year `t` has target year `s = t + h`
 Horizons are calendar years, so reporting gaps never move a label onto another
 year. One file is built per horizon: `company_years_h{h}.parquet`.
 
-| Mode | Positive | Dropped |
-| --- | --- | --- |
-| `exact` (default) | `E == s` | `t < E < s`, and `t >= E` |
-| `within` | `t < E <= s` | `t >= E` |
-
-A row is negative when the firm is known not to have had its event by `s`: it
+A row is positive when `E == s`. Rows with `t < E < s` and rows at or after the
+event (`t >= E`) are dropped. A row is negative when the firm is known not to have had its event by `s`: it
 reported after `s`, or its report for `s` does not meet the distress criterion.
 
 Rows whose outcome at `s` was never observed are dropped:
@@ -39,7 +35,6 @@ Rows whose outcome at `s` was never observed are dropped:
 - `s == 2021` when the firm's 2021 report meets the distress criterion, since it
   may or may not be the final report;
 - censored rows, where the firm stopped reporting without distress before `s`.
-  `--keep-censored` labels these negative instead.
 
 ## Label observation year
 
@@ -51,7 +46,6 @@ row stores `label_observed_year`, the first year in which its label was known:
 | positive | `E` |
 | negative, non-distressed report filed for `s` | `s` |
 | negative otherwise (no report for `s`, or a distressed report that was not the last) | year of the firm's next report after `s` |
-| censored row kept with `--keep-censored` | missing |
 
 The walk-forward split uses this column to keep labels that were still unknown
 at prediction time out of training and validation.
@@ -79,17 +73,19 @@ positives. Events end in 2020, so the last usable test year for horizon `h` is
 `cells.txt` with the emitted `(horizon, test_year)` pairs.
 
 The same firm can appear in training and test, as it would for a deployed
-model; score files flag test rows of firms absent from training
-(`unseen_firm`).
+model. Score files flag test rows of firms absent from training
+(`unseen_firm`), and the evaluation reports metrics for all, seen and unseen
+firms.
 
 ## Features and preprocessing
 
 Not used as features: identifiers and free text (`emis_id`, `company`,
 `industry`, `link`, `num`, `sector_2..4`), degenerate ratios
 (`Revenue/employee`, `Fixed_assets/employee`, `EBITDA/cash_flow`), `year`,
-`label_observed_year`, and `operational_status`. The last is a firm-level
-snapshot taken at data extraction (it changes for only 154 firms), so it carries
-information from after every test year.
+`label_observed_year`, `operational_status` and `number_of_employees`. The last
+two are firm-level snapshots taken at data extraction (they change over time for
+only 154 and 4,128 of 203,900 firms), so they carry information from after
+every test year.
 
 Within each split, features are imputed with training medians and standardized
 with a scaler fit on the training rows.
@@ -118,8 +114,9 @@ The primary table uses test years 2013–2015, where all horizons are available;
 
 ## Models and tuning
 
-Baselines: logistic regression, XGBoost, LightGBM, CatBoost, RealMLP and TabM
-(the last two through `pytabkit` with their published tuned defaults).
+Baselines: logistic regression, XGBoost, LightGBM, CatBoost, RealMLP and TabM,
+the last two through `pytabkit`. RealMLP is tuned over the search space
+published with it (Holzmüller et al., 2024); TabM runs with its tuned defaults.
 
 For every split, each model with a search space in
 `configs/baselines/standard.yaml` gets 40 Optuna (TPE) trials. Gradient-boosted

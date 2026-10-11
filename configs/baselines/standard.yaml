@@ -37,6 +37,15 @@ models:
       val_metric_name: cross_entropy
       use_ls: false
       batch_size: 1024
+    search:
+      num_emb_type: {choices: [none, pbld, pl, plr]}
+      add_front_scale: {choices: [true, false]}
+      lr: {low: 0.02, high: 0.3, log: true}
+      p_drop: {choices: [0.0, 0.15, 0.3]}
+      wd: {choices: [0.0, 0.02]}
+      plr_sigma: {low: 0.05, high: 0.5, log: true}
+      act: {choices: [relu, selu, mish]}
+      hidden_sizes: {choices: [[256, 256, 256], [64, 64, 64, 64, 64], [512]]}
 
   tabm:
     params:
