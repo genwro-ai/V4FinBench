@@ -1,83 +1,91 @@
 import json
+import os
+import platform
+import sys
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
+import numpy as np
 import pandas as pd
 
-DEFAULT_GROUP_COLUMNS = ["model", "horizon"]
-DEFAULT_METRIC_COLUMNS = [
-    "accuracy",
-    "precision",
-    "recall",
-    "f1",
-    "roc_auc",
-    "average_precision",
-]
+from v4finbench.data.schema import FIRM_COL
+
+RESULT_KEY = ["model", "horizon", "test_year"]
 
 
-def aggregate_metrics(
-    metrics: pd.DataFrame,
-    group_columns: list[str] | None = None,
-    metric_columns: list[str] | None = None,
+@dataclass(frozen=True)
+class RunResult:
+    model: str
+    horizon: int
+    test_year: int
+    validation_f1: float
+    metrics: dict[str, float]
+    details: dict[str, Any] = field(default_factory=dict)
+    test_idx: np.ndarray | None = field(default=None, repr=False)
+    test_labels: np.ndarray | None = field(default=None, repr=False)
+    test_scores: np.ndarray | None = field(default=None, repr=False)
+    unseen_firm: np.ndarray | None = field(default=None, repr=False)
+
+    def to_row(self) -> dict[str, Any]:
+        details = {
+            key: json.dumps(value, sort_keys=True) if isinstance(value, dict) else value
+            for key, value in self.details.items()
+        }
+        return {
+            "model": self.model,
+            "horizon": self.horizon,
+            "test_year": self.test_year,
+            "validation_f1": self.validation_f1,
+            **details,
+            **self.metrics,
+        }
+
+
+def upsert_rows(
+    path: str | Path,
+    rows: list[dict[str, Any]],
+    key: list[str] | None = None,
 ) -> pd.DataFrame:
-    group_columns = group_columns or DEFAULT_GROUP_COLUMNS
-    metric_columns = metric_columns or [
-        col for col in DEFAULT_METRIC_COLUMNS if col in metrics.columns
-    ]
-    if not metric_columns:
-        raise ValueError("No metric columns found to aggregate.")
-
-    grouped = metrics.groupby(group_columns, dropna=False)
-    summary = grouped[metric_columns].agg(["mean", "std", "min", "max"])
-    summary.columns = [
-        f"{metric}_{stat}" for metric, stat in summary.columns.to_flat_index()
-    ]
-    if "fold" in metrics.columns:
-        summary["n_folds"] = grouped["fold"].nunique()
-    else:
-        summary["n_folds"] = grouped.size()
-    return summary.reset_index()
+    key = key or RESULT_KEY
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    new = pd.DataFrame(rows)
+    if path.exists():
+        new = pd.concat([pd.read_csv(path), new], ignore_index=True)
+    merged = new.drop_duplicates(subset=key, keep="last")
+    merged.to_csv(path, index=False)
+    return merged
 
 
-def aggregate_metrics_file(
-    input_path: str | Path,
-    output_path: str | Path,
-    group_columns: list[str] | None = None,
-    metric_columns: list[str] | None = None,
-) -> pd.DataFrame:
-    metrics = pd.read_csv(input_path)
-    summary = aggregate_metrics(metrics, group_columns, metric_columns)
-    output = Path(output_path)
-    output.parent.mkdir(parents=True, exist_ok=True)
-    summary.to_csv(output, index=False)
-    return summary
+def hardware() -> dict[str, Any]:
+    info: dict[str, Any] = {
+        "host": platform.node(),
+        "machine": platform.machine(),
+        "n_cpus": os.cpu_count(),
+    }
+    torch = sys.modules.get("torch")
+    if torch is not None and torch.cuda.is_available():
+        info["gpu"] = torch.cuda.get_device_name()
+    return info
 
 
-def collect_best_epoch_files(root: str | Path) -> pd.DataFrame:
-    root_path = Path(root)
-    rows = []
-    for path in sorted(root_path.glob("h*/fold_*/best_epoch.json")):
-        with path.open("r", encoding="utf-8") as file:
-            row = json.load(file)
-        row["source_file"] = str(path)
-        rows.append(row)
-    if not rows:
-        raise FileNotFoundError(f"No best_epoch.json files found under {root_path}")
-    return pd.DataFrame(rows)
-
-
-def aggregate_best_epochs(
-    root: str | Path,
-    output_path: str | Path,
-    summary_path: str | Path | None = None,
-) -> tuple[pd.DataFrame, pd.DataFrame]:
-    best_epochs = collect_best_epoch_files(root)
-    output = Path(output_path)
-    output.parent.mkdir(parents=True, exist_ok=True)
-    best_epochs.to_csv(output, index=False)
-
-    summary = aggregate_metrics(best_epochs)
-    if summary_path is not None:
-        summary_output = Path(summary_path)
-        summary_output.parent.mkdir(parents=True, exist_ok=True)
-        summary.to_csv(summary_output, index=False)
-    return best_epochs, summary
+def write_test_scores(path: str | Path, result: RunResult, df: pd.DataFrame) -> Path:
+    if result.test_idx is None or result.test_scores is None:
+        raise ValueError("RunResult has no test scores to write.")
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(
+        {
+            "model": result.model,
+            "horizon": result.horizon,
+            "test_year": result.test_year,
+            "row_idx": np.asarray(result.test_idx, dtype=np.int64),
+            FIRM_COL: df[FIRM_COL].to_numpy()[result.test_idx],
+            "y_true": result.test_labels,
+            "score": result.test_scores,
+            "y_pred": result.test_scores >= result.metrics["threshold"],
+            "unseen_firm": result.unseen_firm,
+        }
+    ).to_parquet(path, index=False)
+    return path

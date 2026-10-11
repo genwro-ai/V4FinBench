@@ -1,23 +1,16 @@
+import json
+
 import pandas as pd
-import pytest
 
-from v4finbench.evaluation.results import aggregate_metrics
+from v4finbench.evaluation.results import RunResult, upsert_rows
 
 
-def test_aggregate_metrics_computes_fold_summary() -> None:
-    metrics = pd.DataFrame(
-        {
-            "model": ["xgboost", "xgboost", "mlp"],
-            "horizon": [0, 0, 0],
-            "fold": [0, 1, 0],
-            "f1": [0.2, 0.4, 0.1],
-            "roc_auc": [0.8, 0.9, 0.7],
-        }
-    )
+def test_upsert_rows_replaces_rows_with_the_same_key(tmp_path) -> None:
+    path = tmp_path / "metrics.csv"
+    row = RunResult("xgboost", 1, 2015, 0.3, {"roc_auc": 0.8}, {"p": {"a": 1}})
+    upsert_rows(path, [row.to_row()])
+    upsert_rows(path, [{**row.to_row(), "roc_auc": 0.9}])
 
-    summary = aggregate_metrics(metrics)
-    xgb = summary[summary["model"] == "xgboost"].iloc[0]
-
-    assert xgb["f1_mean"] == pytest.approx(0.3)
-    assert xgb["roc_auc_mean"] == pytest.approx(0.85)
-    assert xgb["n_folds"] == 2
+    metrics = pd.read_csv(path)
+    assert metrics["roc_auc"].tolist() == [0.9]
+    assert json.loads(metrics["p"].iloc[0]) == {"a": 1}

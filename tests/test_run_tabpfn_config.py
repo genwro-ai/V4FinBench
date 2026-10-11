@@ -1,4 +1,4 @@
-from v4finbench.models.tabpfn import tabpfn_config_from_mapping
+from v4finbench.models.tabpfn.vanilla import tabpfn_config_from_mapping
 
 
 def test_tabpfn_config_from_mapping_uses_values() -> None:

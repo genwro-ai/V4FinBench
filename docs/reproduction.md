@@ -1,116 +1,75 @@
 # Reproduction
 
-Install dependencies with `uv`:
-
 ```bash
 uv sync --extra dev
 ```
 
-Download the Kaggle files manually into `data/raw/`, or use:
+## Data
+
+Place `company_years.parquet` in `data/raw/` (see the README), then build the
+labels, describe the splits and summarize the data:
 
 ```bash
-uv sync --extra kaggle
-uv run python scripts/download_kaggle.py --out data/raw
+uv run python scripts/build_labels.py
+uv run python scripts/build_temporal_splits.py
+uv run python scripts/summarize_data.py
 ```
 
-Generate deterministic folds:
+`build_temporal_splits.py` writes `data/temporal_splits/split_definition.json` and `cells.txt`;
+`summarize_data.py` writes row and positive counts by horizon, country and year
+to `results/generated/data_summary/`.
+
+## Baselines
 
 ```bash
-uv run python scripts/build_labels.py --input data/raw/company_years.parquet --out data/processed
-uv run python scripts/verify_labels.py --generated data/processed --reference data/raw
-uv run python scripts/summarize_data.py --data-dir data/raw --out results/generated/data_summary.csv
-uv run python scripts/build_folds.py --data-dir data/raw --out data/folds --seed 42
+uv sync --extra dev --extra neural
+uv run python scripts/run_baselines.py
 ```
 
-The first label command regenerates the six horizon files into `data/processed/`.
-The second compares the existing regenerated files against the released Kaggle
-files in `data/raw/` without recalculating labels.
+Runs every model in `configs/baselines/standard.yaml` (logistic regression,
+XGBoost, LightGBM, CatBoost, RealMLP, TabM) on all horizons and test years.
+Useful options: `--models xgboost catboost`, `--horizons 1 3`,
+`--test-year 2014`, `--n-trials 5` for a quick run, `--save-models`.
 
-Each horizon fold directory includes:
+On macOS, run `realmlp`/`tabm` in a separate invocation from
+`xgboost`/`lightgbm`: torch and Homebrew's `libomp` cannot share a process.
 
-```text
-fold_assignments.txt
-split_0_train_idx.txt
-split_0_val_idx.txt
-split_0_test_idx.txt
-...
-metadata.json
-```
-
-`metadata.json` records the seed, fold sizes, full-dataset class counts, and
-train/validation/test class counts for each fold rotation.
-
-All model runners should use the shared preprocessing and evaluation utilities
-under `src/v4finbench/`: training-only median imputation, training-only
-standardization, validation F1 threshold calibration, and test-set metric
-reporting.
-
-Run a small baseline smoke test:
-
-```bash
-uv run python scripts/run_baselines.py \
-  --data-dir data/raw \
-  --folds-dir data/folds \
-  --horizon 0 \
-  --fold 0 \
-  --model logistic_regression \
-  --max-candidates 1 \
-  --no-save-model
-```
-
-`run_baselines.py` replaces `metrics.csv` and `metrics.json` by default so
-reruns do not silently duplicate rows. Use `--append` to add more runs to an
-existing metrics file.
-
-Aggregate per-fold baseline metrics:
-
-```bash
-uv run python scripts/aggregate_results.py \
-  --input results/generated/baselines/metrics.csv \
-  --out results/generated/baselines/summary.csv
-```
-
-Run a local vanilla TabPFN smoke test. Keep the context and split samples small
-locally; full paper-scale TabPFN runs are much heavier.
+## TabPFN
 
 ```bash
 uv sync --extra tabpfn
 uv run --extra tabpfn python scripts/run_tabpfn.py \
-  --config configs/tabpfn/local_smoke.yaml \
-  --data-dir data/raw \
-  --folds-dir data/folds \
-  --horizon 0 \
-  --fold 0
-```
+  --config configs/tabpfn/vanilla_prototype_undersample.yaml
 
-For paper-scale vanilla TabPFN context evaluation, remove the max-sample smoke
-limits and use `--n-context-samples 10000`.
-
-To evaluate a specific TabPFN checkpoint or weights file, pass `--model-path`
-or set `model_path` in the YAML config. The value is forwarded to
-`TabPFNClassifier(model_path=...)`.
-
-Fine-tune TabPFN for one horizon/fold:
-
-```bash
 uv run --extra tabpfn python scripts/finetune_tabpfn.py \
   --config configs/tabpfn/finetune_prototype_undersample.yaml \
-  --data-dir data/raw \
-  --folds-dir data/folds \
-  --horizon 0 \
-  --fold 0 \
-  --model-path /path/to/tabpfn_checkpoint.ckpt \
-  --device cuda
+  --horizon 1 --test-year 2014 \
+  --model-path /path/to/tabpfn.ckpt --device cuda
 ```
 
-The fine-tuning script writes per-epoch `metrics.csv`, `metrics.json`, and
-`best_epoch.json` under `results/generated/tabpfn_finetune/h{horizon}/fold_{fold}`.
+`configs/tabpfn/local_smoke.yaml` limits sample sizes for a local check.
+Fine-tuning runs one split per call; loop over `data/temporal_splits/cells.txt`
+to cover the grid. Each call writes per-epoch metrics, `best_epoch.json` and the
+best epoch's `test_scores.parquet` to `results/generated/tabpfn_finetune/h{h}/Y{Y}/`.
 
-Aggregate best fine-tuning epochs across folds and horizons:
+## Outputs and evaluation
+
+`run_baselines.py` writes one pair of files per model and split under
+`results/generated/baselines/h{h}/Y{Y}/`: `{model}.parquet` with per-row test
+scores (model, horizon, test year, `emis_id`, label, score, thresholded
+prediction, unseen-firm flag) and `{model}.metrics.json` with the split's
+metrics, selected hyperparameters, timings and hardware. Existing cells are
+skipped unless `--overwrite` is given, so jobs can run in parallel and be
+resubmitted.
+
+Summarize with confidence intervals:
 
 ```bash
-uv run python scripts/aggregate_finetune_best.py \
-  --root results/generated/tabpfn_finetune \
-  --out results/generated/tabpfn_finetune/best_epochs.csv \
-  --summary results/generated/tabpfn_finetune/summary.csv
+uv run python scripts/evaluate.py
+uv run python scripts/evaluate.py --all-years
 ```
+
+This writes to `results/generated/summary/`:
+`{primary,all_years}_summary.csv` (metrics with 95% intervals per model and
+horizon, for all, seen and unseen firms), `{primary,all_years}_paired.csv`
+(paired model differences) and `per_split.csv` (one row per model and split).

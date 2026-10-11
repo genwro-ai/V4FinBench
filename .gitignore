@@ -220,9 +220,7 @@ __marimo__/
 # V4FinBench local data and generated artifacts
 data/raw/*
 data/processed/*
-data/folds/*
-data/llama/*
-data/llama_smoke/*
+data/temporal_splits/*
 results/generated/*
 economic-data/
 financial-distress-foundational-models/
@@ -233,7 +231,4 @@ Foundation Finetuning (5).pdf
 *.ckpt
 !data/raw/.gitkeep
 !data/processed/.gitkeep
-!data/folds/.gitkeep
-!data/llama/.gitkeep
-!data/llama_smoke/.gitkeep
 !results/generated/.gitkeep

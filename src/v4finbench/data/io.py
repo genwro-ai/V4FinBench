@@ -1,32 +1,26 @@
+from collections.abc import Iterator
 from pathlib import Path
 
 import pandas as pd
 
-from v4finbench.data.schema import HORIZON_FILES, UNLABELED_FILE
-
-
-def require_file(path: Path) -> Path:
-    if not path.exists():
-        raise FileNotFoundError(f"Expected file does not exist: {path}")
-    return path
-
-
-def read_unlabeled(data_dir: str | Path) -> pd.DataFrame:
-    path = require_file(Path(data_dir) / UNLABELED_FILE)
-    return pd.read_parquet(path)
+from v4finbench.data.schema import horizon_file
+from v4finbench.data.splits import TemporalSplit, temporal_splits
 
 
 def read_horizon(data_dir: str | Path, horizon: int) -> pd.DataFrame:
-    try:
-        file_name = HORIZON_FILES[horizon]
-    except KeyError as exc:
-        raise ValueError(f"Unknown paper horizon: {horizon}") from exc
-    return pd.read_parquet(require_file(Path(data_dir) / file_name))
+    path = Path(data_dir) / horizon_file(horizon)
+    if not path.exists():
+        raise FileNotFoundError(f"{path} not found; run scripts/build_labels.py")
+    return pd.read_parquet(path)
 
 
-def iter_horizon_files(data_dir: str | Path) -> list[tuple[int, Path]]:
-    root = Path(data_dir)
-    return [
-        (horizon, require_file(root / file_name))
-        for horizon, file_name in HORIZON_FILES.items()
-    ]
+def iter_splits(
+    data_dir: str | Path,
+    horizons: list[int],
+    test_year: int | None = None,
+) -> Iterator[tuple[pd.DataFrame, TemporalSplit]]:
+    for horizon in horizons:
+        df = read_horizon(data_dir, horizon)
+        for split in temporal_splits(df, horizon):
+            if test_year is None or split.test_year == test_year:
+                yield df, split
