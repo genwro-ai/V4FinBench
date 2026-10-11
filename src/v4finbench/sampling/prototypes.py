@@ -1,13 +1,18 @@
 import numpy as np
 from numpy.typing import NDArray
 from sklearn.cluster import KMeans, MiniBatchKMeans
+from sklearn.metrics import pairwise_distances_argmin_min
 
 
 def closest_points_to_centers(X: NDArray, centers: NDArray) -> NDArray:
     X_array = np.asarray(X, dtype=np.float64)
     centers_array = np.asarray(centers, dtype=np.float64)
-    distances = ((X_array[:, None, :] - centers_array[None, :, :]) ** 2).sum(axis=2)
-    closest_indices = np.argmin(distances, axis=0)
+    # Chunked nearest-point search. The naive broadcast materializes an
+    # (n_samples, n_centers, n_features) tensor, which reaches terabytes
+    # for large training pools (e.g. 700k samples x 6k centers x 130
+    # features). pairwise_distances_argmin_min returns the same per-center
+    # argmin while staying within sklearn's working-memory budget.
+    closest_indices, _ = pairwise_distances_argmin_min(centers_array, X_array)
     return X_array[closest_indices]
 
 

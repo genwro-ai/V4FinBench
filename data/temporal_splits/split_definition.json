@@ -1,0 +1,86 @@
+{
+  "description": "Walk-forward out-of-time splits with a label-availability rule: train/validation admit only rows whose horizon label was observable by the end of the test year.",
+  "design": "walk_forward_label_availability",
+  "availability_margin": 0,
+  "test_years": [
+    2012,
+    2013,
+    2014,
+    2015,
+    2016,
+    2017,
+    2018,
+    2019,
+    2020
+  ],
+  "val_n_years": 2,
+  "min_positives": {
+    "train": 30,
+    "val": 15,
+    "test": 30
+  },
+  "horizons": {
+    "0": {
+      "emitted_test_years": [
+        2012,
+        2013,
+        2014,
+        2015,
+        2016,
+        2017,
+        2018,
+        2019,
+        2020
+      ]
+    },
+    "1": {
+      "emitted_test_years": [
+        2012,
+        2013,
+        2014,
+        2015,
+        2016,
+        2017,
+        2018,
+        2019
+      ]
+    },
+    "2": {
+      "emitted_test_years": [
+        2012,
+        2013,
+        2014,
+        2015,
+        2016,
+        2017,
+        2018
+      ]
+    },
+    "3": {
+      "emitted_test_years": [
+        2012,
+        2013,
+        2014,
+        2015,
+        2016,
+        2017
+      ]
+    },
+    "4": {
+      "emitted_test_years": [
+        2012,
+        2013,
+        2014,
+        2015,
+        2016
+      ]
+    },
+    "5": {
+      "emitted_test_years": [
+        2013,
+        2014,
+        2015
+      ]
+    }
+  }
+}
