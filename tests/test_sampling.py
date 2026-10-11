@@ -1,7 +1,11 @@
 import numpy as np
 
-from v4finbench.sampling.prototypes import closest_points_to_centers, create_prototypes
-from v4finbench.sampling.strategies import SamplingConfig, apply_sampling
+from v4finbench.models.tabpfn.sampling import (
+    SamplingConfig,
+    apply_sampling,
+    closest_points_to_centers,
+    create_prototypes,
+)
 
 
 def test_closest_points_to_centers_returns_real_rows() -> None:

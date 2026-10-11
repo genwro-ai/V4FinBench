@@ -3,60 +3,38 @@ from pathlib import Path
 
 import pandas as pd
 
-from v4finbench.data.labels import (
-    LabelConfig,
-    write_horizon_labels,
-)
-from v4finbench.data.schema import UNLABELED_FILE
+from v4finbench.data.labels import create_horizon_labels
+from v4finbench.data.schema import FIRM_COL, HORIZONS, TARGET_COL, horizon_file
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Generate V4FinBench horizon label files."
-    )
+    parser = argparse.ArgumentParser(description="Build the horizon label files.")
     parser.add_argument(
-        "--input",
-        type=Path,
-        default=Path("data/raw") / UNLABELED_FILE,
-        help="Path to company_years.parquet.",
+        "--input", type=Path, default=Path("data/raw/company_years.parquet")
     )
+    parser.add_argument("--out", type=Path, default=Path("data/processed"))
     parser.add_argument(
-        "--out",
-        type=Path,
-        default=Path("data/processed"),
-        help="Directory for generated company_years_h*.parquet files.",
+        "--horizons", type=int, nargs="+", choices=HORIZONS, default=HORIZONS
     )
+    parser.add_argument("--mode", choices=["exact", "within"], default="exact")
+    parser.add_argument("--keep-censored", action="store_true")
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    if not args.input.exists():
-        raise FileNotFoundError(f"Missing unlabeled input file: {args.input}")
-
-    print(f"Loading {args.input} ...", flush=True)
     df = pd.read_parquet(args.input)
-    config = LabelConfig()
-    n_companies = df[config.group_col].nunique()
-    print(
-        f"Loaded {len(df):,} rows for {n_companies:,} companies. "
-        "Generating 6 horizon files...",
-        flush=True,
-    )
-
-    written = write_horizon_labels(
-        df,
-        args.out,
-        config=config,
-        show_progress=True,
-    )
-    for horizon, path in written.items():
-        labeled = pd.read_parquet(path, columns=[config.target_col])
-        positives = int(labeled[config.target_col].sum())
+    print(f"{len(df):,} rows, {df[FIRM_COL].nunique():,} firms, mode={args.mode}")
+    args.out.mkdir(parents=True, exist_ok=True)
+    for horizon in args.horizons:
+        labeled = create_horizon_labels(
+            df, horizon, args.mode, drop_censored=not args.keep_censored
+        )
+        path = args.out / horizon_file(horizon)
+        labeled.to_parquet(path, index=False)
         print(
-            f"Wrote paper horizon h={horizon}: {path} "
-            f"({len(labeled):,} rows, {positives:,} positives)",
-            flush=True,
+            f"h={horizon}: {len(labeled):,} rows, "
+            f"{int(labeled[TARGET_COL].sum()):,} positives -> {path}"
         )
 
 

@@ -1,113 +1,62 @@
 import argparse
-import json
 from pathlib import Path
 from typing import Any
 
-import numpy as np
-import pandas as pd
 import yaml
 
-from v4finbench.data.schema import HORIZON_FILES
-from v4finbench.models.tabpfn import (
+from v4finbench.data.io import iter_splits
+from v4finbench.data.schema import HORIZONS
+from v4finbench.evaluation.results import upsert_rows, write_test_scores
+from v4finbench.models.tabpfn.vanilla import (
     TabPFNRunConfig,
+    run_tabpfn,
     tabpfn_config_from_mapping,
-    tabpfn_result_to_row,
-    train_evaluate_tabpfn,
 )
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run V4FinBench TabPFN evaluation.")
+    parser = argparse.ArgumentParser(
+        description="Run vanilla (in-context) TabPFN on the walk-forward splits."
+    )
     parser.add_argument("--config", type=Path, default=None)
-    parser.add_argument("--data-dir", type=Path, default=Path("data/raw"))
-    parser.add_argument("--folds-dir", type=Path, default=Path("data/folds"))
+    parser.add_argument("--data-dir", type=Path, default=Path("data/processed"))
     parser.add_argument("--out", type=Path, default=Path("results/generated/tabpfn"))
-    parser.add_argument("--horizon", default="all", help="'all' or paper horizon 0..5")
-    parser.add_argument("--fold", default="all", help="'all' or fold index")
-    parser.add_argument("--target-col", default="main_label")
+    parser.add_argument(
+        "--horizons", type=int, nargs="+", choices=HORIZONS, default=HORIZONS
+    )
+    parser.add_argument("--test-year", type=int, default=None)
     parser.add_argument("--sampling-strategy", default=None)
     parser.add_argument("--n-context-samples", type=int, default=None)
-    parser.add_argument(
-        "--max-train-samples",
-        type=int,
-        default=None,
-        help="Optional train split subsample for local smoke testing.",
-    )
-    parser.add_argument(
-        "--max-eval-samples",
-        type=int,
-        default=None,
-        help="Optional validation/test split subsample for local smoke testing.",
-    )
+    parser.add_argument("--max-train-samples", type=int, default=None)
+    parser.add_argument("--max-eval-samples", type=int, default=None)
     parser.add_argument("--minority-to-majority-ratio", type=float, default=None)
     parser.add_argument("--random-state", type=int, default=None)
     parser.add_argument("--device", default=None)
-    parser.add_argument(
-        "--model-path",
-        default=None,
-        help="Optional TabPFN checkpoint/weights path passed to TabPFNClassifier.",
-    )
-    parser.add_argument("--append", action="store_true")
+    parser.add_argument("--model-path", default=None)
+    parser.add_argument("--no-scores", action="store_true")
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    horizons = _parse_selection(args.horizon, sorted(HORIZON_FILES))
-    folds = _parse_selection(args.fold, list(range(5)))
     config = build_tabpfn_config(args)
-
-    args.out.mkdir(parents=True, exist_ok=True)
-    metrics_csv = args.out / "metrics.csv"
-    metrics_json = args.out / "metrics.json"
-    if not args.append:
-        _remove_if_exists(metrics_csv)
-        _remove_if_exists(metrics_json)
-
-    rows = []
-    for horizon in horizons:
-        data_path = args.data_dir / HORIZON_FILES[horizon]
-        if not data_path.exists():
-            raise FileNotFoundError(f"Missing horizon data file: {data_path}")
-        print(f"Loading paper horizon h={horizon}: {data_path}", flush=True)
-        df = pd.read_parquet(data_path)
-
-        for fold in folds:
-            train_idx, val_idx, test_idx = _load_split_indices(
-                args.folds_dir / f"h{horizon}",
-                fold,
-            )
-            print(
-                f"Running TabPFN h={horizon}, fold={fold}, "
-                f"sampling={config.sampling_strategy}, "
-                f"context={config.n_context_samples}",
-                flush=True,
-            )
-            result = train_evaluate_tabpfn(
-                df=df,
-                train_idx=train_idx,
-                val_idx=val_idx,
-                test_idx=test_idx,
-                horizon=horizon,
-                fold=fold,
-                config=config,
-                target_col=args.target_col,
-            )
-            row = tabpfn_result_to_row(result)
-            rows.append(row)
-            _append_results(metrics_csv, [row])
-            print(
-                f"Finished TabPFN h={horizon}, fold={fold}: "
-                f"f1={result.metrics['f1']:.4f}, "
-                f"roc_auc={result.metrics['roc_auc']:.4f}",
-                flush=True,
-            )
-
-    metrics_json.write_text(json.dumps(rows, indent=2), encoding="utf-8")
+    for df, split in iter_splits(args.data_dir, args.horizons, args.test_year):
+        cell = f"h{split.horizon}/Y{split.test_year}"
+        result = run_tabpfn(df, split, config)
+        upsert_rows(args.out / "metrics.csv", [result.to_row()])
+        if not args.no_scores:
+            path = args.out / "scores" / cell / f"{result.model}.parquet"
+            write_test_scores(path, result, df)
+        m = result.metrics
+        print(
+            f"{result.model} {cell}: ROC-AUC={m['roc_auc']:.3f} "
+            f"PR-AUC={m['pr_auc']:.3f} F1={m['f1']:.3f}",
+            flush=True,
+        )
 
 
 def build_tabpfn_config(args: argparse.Namespace) -> TabPFNRunConfig:
-    values = _load_tabpfn_config_values(args.config)
+    values = _load_config(args.config)
     overrides = {
         "sampling_strategy": args.sampling_strategy,
         "n_context_samples": args.n_context_samples,
@@ -122,47 +71,14 @@ def build_tabpfn_config(args: argparse.Namespace) -> TabPFNRunConfig:
     return tabpfn_config_from_mapping(values)
 
 
-def _load_tabpfn_config_values(path: Path | None) -> dict[str, Any]:
+def _load_config(path: Path | None) -> dict[str, Any]:
     if path is None:
         return {}
-    with path.open("r", encoding="utf-8") as file:
+    with path.open(encoding="utf-8") as file:
         config = yaml.safe_load(file) or {}
-    mode = config.get("mode", "vanilla")
-    if mode != "vanilla":
-        raise ValueError(
-            f"run_tabpfn.py currently supports only vanilla configs, got mode={mode}"
-        )
+    if config.get("mode", "vanilla") != "vanilla":
+        raise ValueError(f"{path} is not a vanilla TabPFN config.")
     return config
-
-
-def _parse_selection(value: str, allowed: list[int]) -> list[int]:
-    if value == "all":
-        return allowed
-    selected = int(value)
-    if selected not in allowed:
-        raise ValueError(f"Invalid selection {value}; allowed values: {allowed}")
-    return [selected]
-
-
-def _load_split_indices(
-    fold_dir: Path,
-    fold: int,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    return (
-        np.loadtxt(fold_dir / f"split_{fold}_train_idx.txt", dtype=int),
-        np.loadtxt(fold_dir / f"split_{fold}_val_idx.txt", dtype=int),
-        np.loadtxt(fold_dir / f"split_{fold}_test_idx.txt", dtype=int),
-    )
-
-
-def _append_results(path: Path, rows: list[dict[str, Any]]) -> None:
-    df = pd.DataFrame(rows)
-    df.to_csv(path, mode="a", header=not path.exists(), index=False)
-
-
-def _remove_if_exists(path: Path) -> None:
-    if path.exists():
-        path.unlink()
 
 
 if __name__ == "__main__":
