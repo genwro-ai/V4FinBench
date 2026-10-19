@@ -36,23 +36,32 @@ Useful options: `--models xgboost catboost`, `--horizons 1 3`,
 On macOS, run `realmlp`/`tabm` in a separate invocation from
 `xgboost`/`lightgbm`: torch and Homebrew's `libomp` cannot share a process.
 
-## TabPFN
+## Foundation models
+
+TabPFN-3.5 (`tabpfn==9.2.0`) and TabICL v2 (`tabicl==2.2.0`) need a GPU. The
+TabPFN-3.5 weights require an accepted license and a Prior Labs API key
+(`TABPFN_TOKEN`) on first download; on offline nodes, copy the weight cache and
+set `TABPFN_MODEL_CACHE_DIR`.
+
+In-context (no training) runs through the baseline runner with its own config:
+TabPFN and TabICL, each with the full training set, random undersampling,
+random oversampling or prototype undersampling as context.
 
 ```bash
 uv sync --extra tabpfn
-uv run --extra tabpfn python scripts/run_tabpfn.py \
-  --config configs/tabpfn/vanilla_prototype_undersample.yaml
-
-uv run --extra tabpfn python scripts/finetune_tabpfn.py \
-  --config configs/tabpfn/finetune_prototype_undersample.yaml \
-  --horizon 1 --test-year 2014 \
-  --model-path /path/to/tabpfn.ckpt --device cuda
+uv run python scripts/run_baselines.py \
+  --config configs/foundation/in_context.yaml --track main
 ```
 
-`configs/tabpfn/local_smoke.yaml` limits sample sizes for a local check.
-Fine-tuning runs one split per call; loop over `data/temporal_splits/cells.txt`
-to cover the grid. Each call writes per-epoch metrics, `best_epoch.json` and the
-best epoch's `test_scores.parquet` to `results/generated/tabpfn_finetune/h{h}/Y{Y}/`.
+Fine-tuning runs one estimator and sampling variant per call (sampling: `none`,
+`undersample`, `prototype_undersampling`). For each task it fine-tunes for up to
+10 epochs per learning rate in `configs/foundation/finetune.yaml`, early
+stopping on the validation years, keeps the learning rate with the best
+validation PR-AUC and saves that run's best-epoch weights next to its results.
+
+```bash
+uv run python scripts/finetune_foundation.py --estimator tabpfn --sampling none
+```
 
 ## Outputs and evaluation
 

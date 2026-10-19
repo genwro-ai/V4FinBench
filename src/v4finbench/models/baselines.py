@@ -32,6 +32,7 @@ def run_baseline(
 ) -> RunResult:
     data = prepare_split(df, split.train_idx, split.val_idx, split.test_idx)
     model_config = config["models"][model_name]
+    estimator = model_config.get("estimator", model_name)
     search = model_config.get("search", {})
     fixed = model_config.get("params", {})
     n_trials = (n_trials or config["n_trials"]) if search else 1
@@ -44,7 +45,7 @@ def run_baseline(
             **{name: suggest(trial, name, space) for name, space in search.items()},
         }
         model = fit_model(
-            model_name, params, data, random_state, config["early_stopping_rounds"]
+            estimator, params, data, random_state, config.get("early_stopping_rounds")
         )
         score = average_precision_score(data.y_val, positive_score(model, data.X_val))
         if score > best["score"]:
@@ -111,18 +112,18 @@ def suggest(trial: optuna.Trial, name: str, space: dict[str, Any]) -> Any:
 
 
 def fit_model(
-    model_name: str,
+    estimator: str,
     params: dict[str, Any],
     data: SplitData,
     random_state: int,
-    early_stopping_rounds: int,
+    early_stopping_rounds: int | None,
 ):
     X, y, X_val, y_val = data.X_train, data.y_train, data.X_val, data.y_val
-    if model_name == "logistic_regression":
+    if estimator == "logistic_regression":
         return LogisticRegression(
             max_iter=1000, random_state=random_state, **params
         ).fit(X, y)
-    if model_name == "xgboost":
+    if estimator == "xgboost":
         from xgboost import XGBClassifier
 
         model = XGBClassifier(
@@ -134,7 +135,7 @@ def fit_model(
             **params,
         )
         return model.fit(X, y, eval_set=[(X_val, y_val)], verbose=False)
-    if model_name == "lightgbm":
+    if estimator == "lightgbm":
         from lightgbm import LGBMClassifier, early_stopping
 
         model = LGBMClassifier(
@@ -152,7 +153,7 @@ def fit_model(
             eval_set=[(X_val, y_val)],
             callbacks=[early_stopping(early_stopping_rounds, verbose=False)],
         )
-    if model_name == "catboost":
+    if estimator == "catboost":
         from catboost import CatBoostClassifier
 
         model = CatBoostClassifier(
@@ -168,14 +169,16 @@ def fit_model(
             **params,
         )
         return model.fit(X, y, eval_set=(X_val, y_val))
-    if model_name in ("realmlp", "tabm"):
+    if estimator in ("realmlp", "tabm"):
         from pytabkit import RealMLP_TD_Classifier, TabM_D_Classifier
 
-        estimator = (
-            RealMLP_TD_Classifier if model_name == "realmlp" else TabM_D_Classifier
-        )
-        return estimator(random_state=random_state, **params).fit(X, y, X_val, y_val)
-    raise ValueError(f"Unknown baseline model: {model_name}")
+        cls = RealMLP_TD_Classifier if estimator == "realmlp" else TabM_D_Classifier
+        return cls(random_state=random_state, **params).fit(X, y, X_val, y_val)
+    if estimator in ("tabpfn", "tabicl"):
+        from v4finbench.models.foundation.in_context import fit_in_context
+
+        return fit_in_context(estimator, params, X, y, random_state)
+    raise ValueError(f"Unknown estimator: {estimator}")
 
 
 def positive_score(model, X: pd.DataFrame) -> np.ndarray:

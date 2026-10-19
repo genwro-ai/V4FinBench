@@ -23,15 +23,18 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def check_same_tasks(scores: pd.DataFrame) -> None:
+def complete_models(scores: pd.DataFrame) -> pd.DataFrame:
     tasks = scores.groupby("model")[["horizon", "test_year"]].apply(
         lambda frame: frozenset(map(tuple, frame.drop_duplicates().to_numpy()))
     )
-    if tasks.nunique() > 1:
-        raise ValueError(
-            "Models cover different tasks; evaluate them separately or rerun: "
-            + ", ".join(f"{model}: {len(t)} tasks" for model, t in tasks.items())
+    track_tasks = frozenset().union(*tasks)
+    incomplete = [model for model, t in tasks.items() if t != track_tasks]
+    for model in incomplete:
+        print(
+            f"Excluding {model}: {len(tasks[model])} of {len(track_tasks)} tasks",
+            flush=True,
         )
+    return scores[~scores["model"].isin(incomplete)]
 
 
 def main() -> None:
@@ -48,7 +51,7 @@ def main() -> None:
             for h, y in zip(scores.horizon, scores.test_year, strict=True)
         ]
     ]
-    check_same_tasks(scores)
+    scores = complete_models(scores)
     per_split = pd.DataFrame(
         json.loads(path.read_text(encoding="utf-8"))
         for root in roots

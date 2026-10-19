@@ -92,7 +92,7 @@ def kmeans_prototypes(
     """Indices of the rows nearest to the centres of a k-means fit on ``X``."""
     if n_prototypes >= len(X):
         return np.arange(len(X))
-    device = _torch_device(device)
+    device = torch_device(device)
     if device.type == "cuda":
         torch.backends.cuda.matmul.allow_tf32 = True
 
@@ -142,7 +142,7 @@ def kmeans_prototypes(
     return np.unique(best_index.cpu().numpy())
 
 
-def _torch_device(device: str):
+def torch_device(device: str):
     if device != "auto":
         return torch.device(device)
     if torch.cuda.is_available():

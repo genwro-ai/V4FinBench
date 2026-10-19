@@ -1,6 +1,6 @@
 import numpy as np
 
-from v4finbench.models.tabpfn.sampling import (
+from v4finbench.models.foundation.sampling import (
     SamplingConfig,
     apply_sampling,
     kmeans_prototypes,

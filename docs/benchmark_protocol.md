@@ -144,9 +144,23 @@ Rehmsmeier, 2015; McDermott et al., 2024). RealMLP and TabM select their best
 epoch on validation cross-entropy, without label smoothing. The decision
 threshold of the selected model maximizes validation F1.
 
-## Sampling for TabPFN context
+## Foundation models
 
-`v4finbench.models.tabpfn.sampling` implements `none`, `oversample`,
+TabPFN-3.5 and TabICL v2 are evaluated in context, with the training set as
+context: full, randomly undersampled, randomly oversampled or prototype
+undersampled (minority-to-majority ratio 0.3). Fine-tuned variants train on the
+full, undersampled or prototype-undersampled training set for up to 10 epochs
+with early stopping on validation ROC-AUC (the metrics the libraries offer);
+among learning rates 1e-5, 3e-5 and 1e-4 the run with the best validation
+PR-AUC is kept, together with its best-epoch weights. If no epoch beats the
+pretrained model on validation, the pretrained weights are kept. Oversampling
+is not used for fine-tuning: duplicated positives would land in both the
+context and query parts of a training batch. Foundation models are run on the
+main track.
+
+## Sampling
+
+`v4finbench.models.foundation.sampling` implements `none`, `oversample`,
 `undersample` and `prototype_undersampling`. Undersampling targets a
 minority-to-majority ratio of 0.3. Prototype undersampling clusters the majority
 class with k-means (in torch, on CUDA, Apple GPU or CPU, iterated until the

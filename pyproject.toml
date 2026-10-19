@@ -23,15 +23,14 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+    "pre-commit>=4.0.0",
     "pytest>=8.0.0",
-    "ruff>=0.8.0",
+    "ruff>=0.17.1",
 ]
 tabpfn = [
-    "torch>=2.3.0",
-    "torchvision>=0.18.0",
-    "tabpfn==6.0.6",
-    "tabpfn-common-utils==0.2.10",
-    "tabpfn-extensions==0.2.2",
+    "torch>=2.5",
+    "tabpfn==9.2.0",
+    "tabicl[finetune]==2.2.0",
 ]
 neural = [
     "pytabkit>=1.7",
@@ -58,4 +57,3 @@ exclude = [
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
-

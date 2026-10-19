@@ -11,8 +11,17 @@ preprint code, and why. Full definitions are in
 - The grouped 5-fold cross-validation was removed; only the chronological
   walk-forward evaluation remains.
 - Horizon `h = 0` (current-year distress) was dropped; horizons are `h = 1..5`.
-- TabPFN is out of scope for now (to be revisited with TabPFN 3.5, TabICL and
-  proper tuning). Its code is kept but was not re-run.
+- Foundation models: TabPFN-3.5 (`tabpfn==9.2.0`) and TabICL v2
+  (`tabicl==2.2.0`), on the main track. In context (no training): each with the
+  full, undersampled, oversampled or prototype-undersampled training set as
+  context, default model settings, no hyperparameter search (validation only
+  sets the threshold). Fine-tuned with the libraries' built-in fine-tuners:
+  full, undersampled or prototype-undersampled training data (no oversampling:
+  duplicated positives would sit in both the context and query of a batch), up
+  to 10 epochs with early stopping on validation ROC-AUC, learning rates 1e-5,
+  3e-5 and 1e-4, the run with the best validation PR-AUC kept with its
+  best-epoch weights (or the pretrained weights if no epoch beats them). The old
+  hand-written fine-tuning loop for tabpfn 6.0.6 was removed.
 - Prototype undersampling (for TabPFN contexts and fine-tuning) now runs a
   converged k-means in torch (CUDA, Apple GPU or CPU) instead of
   `MiniBatchKMeans`, which stopped early: on the largest task the mean squared

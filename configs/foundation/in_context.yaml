@@ -1,0 +1,32 @@
+n_trials: 1
+
+sampling: &sampling
+  ratio: 0.3
+  sampling_cache_dir: data/cache/sampling
+
+models:
+  tabpfn_full:
+    estimator: tabpfn
+    params: {<<: *sampling, sampling: none}
+  tabpfn_undersample:
+    estimator: tabpfn
+    params: {<<: *sampling, sampling: undersample}
+  tabpfn_oversample:
+    estimator: tabpfn
+    params: {<<: *sampling, sampling: oversample}
+  tabpfn_proto:
+    estimator: tabpfn
+    params: {<<: *sampling, sampling: prototype_undersampling}
+
+  tabicl_full:
+    estimator: tabicl
+    params: {<<: *sampling, sampling: none}
+  tabicl_undersample:
+    estimator: tabicl
+    params: {<<: *sampling, sampling: undersample}
+  tabicl_oversample:
+    estimator: tabicl
+    params: {<<: *sampling, sampling: oversample}
+  tabicl_proto:
+    estimator: tabicl
+    params: {<<: *sampling, sampling: prototype_undersampling}

@@ -4,7 +4,8 @@ V4FinBench is a public benchmark for rare-event, multi-horizon financial-distres
 prediction on about 1.1M firm-year rows from roughly 200k companies in the four
 Visegrád countries. This repository builds the horizon labels, defines the
 chronological evaluation protocol, and runs the reference models (tabular
-baselines and TabPFN).
+baselines, RealMLP, TabM, and the tabular foundation models TabPFN-3.5 and
+TabICL v2).
 
 The raw EMIS extraction is not redistributed; the pipeline starts from the
 released Kaggle data (see [docs/data_provenance.md](docs/data_provenance.md)).
@@ -41,7 +42,7 @@ Commands: [docs/reproduction.md](docs/reproduction.md).
 ## Repository layout
 
 ```text
-configs/          model hyperparameter grids and TabPFN configs
+configs/          baseline search spaces, foundation-model configs
 docs/             protocol, reproduction, data provenance
 scripts/          command-line entry points
 src/v4finbench/
@@ -49,7 +50,7 @@ src/v4finbench/
 ├── evaluation/   metrics, thresholds, result files, bootstrap summary
 └── models/
     ├── baselines.py
-    └── tabpfn/   vanilla, fine-tuning, context sampling
+    └── foundation/  TabPFN and TabICL: in-context, fine-tuning, sampling
 tests/
 ```
 
@@ -57,5 +58,6 @@ tests/
 
 ```bash
 uv sync --extra dev
+uv run pre-commit install
 uv run pytest
 ```
