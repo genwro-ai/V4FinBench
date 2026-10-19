@@ -6,6 +6,7 @@ import yaml
 
 from v4finbench.data.io import iter_splits
 from v4finbench.data.schema import HORIZONS
+from v4finbench.data.splits import TRACKS
 from v4finbench.evaluation.results import upsert_rows, write_test_scores
 from v4finbench.models.tabpfn.vanilla import (
     TabPFNRunConfig,
@@ -25,6 +26,7 @@ def parse_args() -> argparse.Namespace:
         "--horizons", type=int, nargs="+", choices=HORIZONS, default=HORIZONS
     )
     parser.add_argument("--test-year", type=int, default=None)
+    parser.add_argument("--track", choices=TRACKS, default="full")
     parser.add_argument("--sampling-strategy", default=None)
     parser.add_argument("--n-context-samples", type=int, default=None)
     parser.add_argument("--max-train-samples", type=int, default=None)
@@ -40,7 +42,9 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     config = build_tabpfn_config(args)
-    for df, split in iter_splits(args.data_dir, args.horizons, args.test_year):
+    for df, split in iter_splits(
+        args.data_dir, args.horizons, args.test_year, args.track
+    ):
         cell = f"h{split.horizon}/Y{split.test_year}"
         result = run_tabpfn(df, split, config)
         upsert_rows(args.out / "metrics.csv", [result.to_row()])

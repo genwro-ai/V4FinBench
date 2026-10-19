@@ -29,10 +29,11 @@ into `data/processed/company_years_h{1..5}.parquet`.
   composite distress criterion.
 - Horizons `h = 1..5` are calendar years; a row from year `t` is labeled by the
   firm's status in `t + h`.
-- Evaluation is walk-forward: one model per horizon and test year (2013–2020),
-  trained only on labels known by the test year.
-- Ranking metrics are averaged over test years, threshold metrics come from summed
-  counts, and confidence intervals from a firm-clustered bootstrap.
+- Evaluation is walk-forward: one model per task (horizon and test year,
+  2013–2020), trained only on labels known by the test year. The main track
+  scores the 15 tasks whose event year is 2018–2020; the full track all 25.
+- The primary metric is country-stratified ROC-AUC (distressed vs healthy firms
+  of the same country and year), with firm-clustered bootstrap intervals.
 
 Full definitions: [docs/benchmark_protocol.md](docs/benchmark_protocol.md).
 Commands: [docs/reproduction.md](docs/reproduction.md).

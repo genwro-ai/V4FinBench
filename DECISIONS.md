@@ -74,6 +74,31 @@ Resulting sizes:
 | 4 | 561,694 | 1,330 | 0.24% |
 | 5 | 475,221 | 1,198 | 0.25% |
 
+## Known data issues
+
+**Country codes.** The released `column_descriptions.md` documents
+`country` as 0 = CZ, 1 = HU, 2 = PL, 3 = SK. The EMIS links, company names,
+region counts and raw export sizes all show the actual coding is
+**0 = PL, 1 = CZ, 2 = SK, 3 = HU**. The code uses the corrected mapping; the
+Kaggle documentation must be fixed in the re-release.
+
+**Poland 2016 coverage gap.** The original EMIS Excel export for Poland 2016
+(`PL 2016 ID wsk.xlsx`, April 2023) contains financials for only 9,960
+companies, against 39,208 (2014), 34,744 (2015), 57,636 (2017) and 51,432
+(2018). These counts match the released file exactly, so the gap comes from the
+export and nothing was lost in processing; only a re-export from EMIS could
+fill it. 78% of Polish firms that report in
+both 2015 and 2017 have no 2016 report (12–16% for other years), so the firms
+existed and only the 2016 statements are missing. Calendar-year labels and
+`label_observed_year` keep these gaps from shifting labels, but Polish distress
+events in 2016–2017 are under-represented (45 and 54 events vs 175–204 per year
+before and 425–454 after). In those event years the test positives are mostly
+Hungarian while negatives remain mostly Polish, which lowers pooled ROC-AUC
+(e.g. 0.69 pooled vs about 0.81–0.83 within each country for `h = 3`, events in
+2016). At a fixed event year, performance decreases monotonically with the
+horizon; comparing horizons over test years 2013–2015 mixes in these event
+years and makes `h = 5` look better than `h = 3–4`.
+
 ## Features
 
 Not used as features: identifiers and free text, three degenerate ratios,
@@ -105,16 +130,30 @@ the label files, so they cannot go stale. Test years start in 2013 because the
 
 ## Evaluation
 
-- Primary table: test years 2013–2015, where every horizon is available
-  (`--all-years` for every year).
-- Ranking metrics (ROC-AUC, PR-AUC, recall at 1% and 0.1% FPR) are computed per
-  test year and averaged; F1, precision and recall come from counts summed over
-  test years, each year using its validation threshold (Forman and Scholz,
-  2010). Pooling scores from separately trained yearly models would penalize
-  models whose score scale shifts between years.
+- **Tasks and tracks.** A task is a prediction origin (test year) and a
+  horizon. The main track has the 15 tasks whose event year (test year + h) is
+  2018–2020: every horizon is scored on the same failures, and the event years
+  2016–2017 distorted by the Poland 2016 gap are avoided. It is also cheap
+  enough for expensive models. The full track has all 25 tasks and is used for
+  performance over time and robustness.
+- **Primary metric: country-stratified ROC-AUC**, the probability that a
+  distressed firm ranks above a healthy firm from the same country and year,
+  pooled over the track's tasks (covariate-adjusted ROC; Janes and Pepe, 2008).
+  It never compares scores across separately trained yearly models (Forman and
+  Scholz, 2010) or across countries. Where the country mix is stable it equals
+  the pooled AUC; where coverage shifts it, it removes the artifact (e.g.
+  XGBoost `h = 3`, test years 2013–2015: 0.813 stratified vs 0.728 pooled).
+  With it, performance decreases monotonically with the horizon in every window.
+- Secondary: recall at 1% and 0.1% FPR (stratified the same way), PR-AUC per
+  task, pooled ROC-AUC per task (for comparison with prior work), and F1,
+  precision and recall from counts summed over tasks at the validation
+  threshold.
 - Uncertainty: firm-clustered bootstrap (firms resampled with all their test
   rows), 95% intervals, and paired differences between models on the same
-  resamples.
+  resamples. Metrics are also reported for seen/unseen firms and per country.
+- **For others:** task membership files keyed by (`emis_id`, `year`), the
+  evaluation script, and our per-row baseline predictions, so new methods can be
+  compared to the baselines with paired tests without retraining them.
 
 ## Baselines and tuning
 
@@ -147,7 +186,8 @@ the label files, so they cannot go stale. Test years start in 2013 because the
 
 ## Open items
 
-- Re-release the Kaggle dataset from this repository.
+- Re-release the Kaggle dataset from this repository, with the corrected
+  country codes.
 - Athena job scripts for the full grid.
 - Revisit imputation and scaling (tree models and TabPFN handle missing values
   natively).
@@ -160,6 +200,9 @@ the label files, so they cannot go stale. Test years start in 2013 because the
 - Gu, Kelly, Xiu (2020). Empirical Asset Pricing via Machine Learning. RFS.
 - Forman, Scholz (2010). Apples-to-Apples in Cross-Validation Studies. SIGKDD
   Explorations.
+- Janes, Pepe (2008). Adjusting for Covariates in Studies of Diagnostic,
+  Screening, or Prognostic Markers: An Old Concept in a New Setting. American
+  Journal of Epidemiology.
 - Saito, Rehmsmeier (2015). The Precision-Recall Plot Is More Informative than
   the ROC Plot When Evaluating Binary Classifiers on Imbalanced Datasets. PLOS
   ONE.

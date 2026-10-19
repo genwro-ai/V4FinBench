@@ -27,6 +27,6 @@ def test_prepare_split_fits_imputation_and_scaling_on_training_rows() -> None:
     )
     data = prepare_split(df, np.array([0, 1, 2]), np.array([3]), np.array([4]))
 
-    assert data.X_train["x"].tolist() == pytest.approx([-1.5**0.5, 0.0, 1.5**0.5])
+    assert data.X_train["x"].tolist() == pytest.approx([-(1.5**0.5), 0.0, 1.5**0.5])
     assert data.X_val["x"].tolist() == [0.0]
     assert data.y_test.tolist() == [1]

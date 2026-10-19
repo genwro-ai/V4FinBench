@@ -5,6 +5,17 @@ import pandas as pd
 
 from v4finbench.data.schema import LABEL_YEAR_COL, TARGET_COL, YEAR_COL
 
+MAIN_EVENT_YEARS = (2018, 2019, 2020)
+TRACKS = ("main", "full")
+
+
+def in_track(horizon: int, test_year: int, track: str) -> bool:
+    if track == "full":
+        return True
+    if track == "main":
+        return test_year + horizon in MAIN_EVENT_YEARS
+    raise ValueError(f"Unknown track {track!r}; expected one of {TRACKS}")
+
 
 @dataclass(frozen=True)
 class SplitConfig:

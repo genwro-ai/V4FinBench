@@ -6,6 +6,7 @@ import yaml
 
 from v4finbench.data.io import iter_splits
 from v4finbench.data.schema import HORIZONS
+from v4finbench.data.splits import TRACKS
 from v4finbench.evaluation.results import hardware, write_test_scores
 from v4finbench.models.baselines import run_baseline
 
@@ -26,6 +27,7 @@ def parse_args() -> argparse.Namespace:
         "--horizons", type=int, nargs="+", choices=HORIZONS, default=HORIZONS
     )
     parser.add_argument("--test-year", type=int, default=None)
+    parser.add_argument("--track", choices=TRACKS, default="full")
     parser.add_argument("--n-trials", type=int, default=None)
     parser.add_argument("--random-state", type=int, default=42)
     parser.add_argument("--save-models", action="store_true")
@@ -43,7 +45,9 @@ def main() -> None:
     if unknown:
         raise ValueError(f"Models missing from {args.config}: {sorted(unknown)}")
 
-    for df, split in iter_splits(args.data_dir, args.horizons, args.test_year):
+    for df, split in iter_splits(
+        args.data_dir, args.horizons, args.test_year, args.track
+    ):
         cell = args.out / f"h{split.horizon}" / f"Y{split.test_year}"
         for model_name in models:
             metrics_path = cell / f"{model_name}.metrics.json"

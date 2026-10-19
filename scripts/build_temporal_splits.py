@@ -4,15 +4,16 @@ from dataclasses import asdict
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 
 from v4finbench.data.io import read_horizon
-from v4finbench.data.schema import HORIZONS, TARGET_COL, YEAR_COL
-from v4finbench.data.splits import SplitConfig, temporal_splits
+from v4finbench.data.schema import FIRM_COL, HORIZONS, TARGET_COL, YEAR_COL
+from v4finbench.data.splits import SplitConfig, in_track, temporal_splits
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Describe the walk-forward splits and write cells.txt."
+        description="Write the walk-forward task definitions and membership files."
     )
     parser.add_argument("--data-dir", type=Path, default=Path("data/processed"))
     parser.add_argument("--out", type=Path, default=Path("data/temporal_splits"))
@@ -44,6 +45,7 @@ def main() -> None:
     for horizon in args.horizons:
         df = read_horizon(args.data_dir, horizon)
         years, y = df[YEAR_COL].to_numpy(), df[TARGET_COL].to_numpy()
+        membership = []
         for split in temporal_splits(df, horizon, config, include_skipped=True):
             train = describe(split.train_idx, years, y)
             val = describe(split.val_idx, years, y)
@@ -53,6 +55,7 @@ def main() -> None:
                     "horizon": horizon,
                     "test_year": split.test_year,
                     "skip_reason": split.skip_reason,
+                    "main_track": in_track(horizon, split.test_year, "main"),
                     "train": train,
                     "val": val,
                     "test": test,
@@ -68,13 +71,29 @@ def main() -> None:
             )
             if split.skip_reason is None:
                 cells.append(f"{horizon} {split.test_year}")
+                membership += [
+                    df.iloc[idx][[FIRM_COL, YEAR_COL]].assign(
+                        horizon=horizon, test_year=split.test_year, role=role
+                    )
+                    for role, idx in [
+                        ("train", split.train_idx),
+                        ("val", split.val_idx),
+                        ("test", split.test_idx),
+                    ]
+                ]
+        pd.concat(membership, ignore_index=True).to_parquet(
+            args.out / f"tasks_h{horizon}.parquet", index=False
+        )
 
     (args.out / "split_definition.json").write_text(
         json.dumps({"config": asdict(config), "splits": summaries}, indent=2),
         encoding="utf-8",
     )
     (args.out / "cells.txt").write_text("\n".join(cells) + "\n", encoding="utf-8")
-    print(f"\nWrote split_definition.json and cells.txt ({len(cells)} cells)")
+    print(
+        f"\nWrote split_definition.json, cells.txt ({len(cells)} tasks) and "
+        f"tasks_h*.parquet to {args.out}"
+    )
 
 
 if __name__ == "__main__":

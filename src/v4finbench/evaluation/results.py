@@ -9,7 +9,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from v4finbench.data.schema import FIRM_COL
+from v4finbench.data.schema import COUNTRY_COL, FIRM_COL
 
 RESULT_KEY = ["model", "horizon", "test_year"]
 
@@ -82,6 +82,7 @@ def write_test_scores(path: str | Path, result: RunResult, df: pd.DataFrame) -> 
             "test_year": result.test_year,
             "row_idx": np.asarray(result.test_idx, dtype=np.int64),
             FIRM_COL: df[FIRM_COL].to_numpy()[result.test_idx],
+            COUNTRY_COL: df[COUNTRY_COL].to_numpy()[result.test_idx],
             "y_true": result.test_labels,
             "score": result.test_scores,
             "y_pred": result.test_scores >= result.metrics["threshold"],

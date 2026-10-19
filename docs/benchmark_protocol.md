@@ -50,11 +50,13 @@ row stores `label_observed_year`, the first year in which its label was known:
 The walk-forward split uses this column to keep labels that were still unknown
 at prediction time out of training and validation.
 
-## Walk-forward splits
+## Tasks and walk-forward splits
 
-Splits are computed from a horizon file on demand
-(`v4finbench.data.splits.temporal_splits`). For each test year `Y` from 2013 to
-2020:
+A task is a prediction origin `Y` (the end of fiscal year `Y`) and a horizon
+`h`: using everything observable by the end of `Y`, predict distress in year
+`Y + h` for the firms reporting in `Y`. Each task has its own split, computed
+from the horizon file on demand (`v4finbench.data.splits.temporal_splits`), for
+`Y` from 2013 to 2020:
 
 - **test**: all rows from year `Y`;
 - **pool**: rows from earlier years with `t + h <= Y` and
@@ -69,8 +71,17 @@ the stricter cutoff `Y - 1`.
 
 A split is skipped when it has fewer than 30 test, 30 training or 15 validation
 positives. Events end in 2020, so the last usable test year for horizon `h` is
-`2020 - h`. `scripts/build_temporal_splits.py` prints the grid and writes
-`cells.txt` with the emitted `(horizon, test_year)` pairs.
+`2020 - h`, which leaves 25 tasks. `scripts/build_temporal_splits.py` prints the
+grid and writes `cells.txt` and `tasks_h{h}.parquet`, which list each task's
+train, validation and test rows by (`emis_id`, `year`).
+
+## Tracks
+
+- **Main** (15 tasks): event years `Y + h` in 2018–2020, i.e. test years
+  2017–2019 for `h = 1` down to 2013–2015 for `h = 5`. Every horizon is scored
+  on the same failures, and the event years 2016–2017, which the Poland 2016
+  coverage gap distorts, are avoided. This is the headline evaluation.
+- **Full** (25 tasks): all tasks, for performance over time and robustness.
 
 The same firm can appear in training and test, as it would for a deployed
 model. Score files flag test rows of firms absent from training
@@ -93,24 +104,30 @@ with a scaler fit on the training rows.
 ## Metrics
 
 Each model scores its test year. The decision threshold maximizes F1 on the
-validation years and is applied unchanged to the test year.
+validation years and is applied unchanged to the test year. Metrics are pooled
+over a track's tasks for each model and horizon:
 
-- **Ranking metrics**, computed per test year and averaged: ROC-AUC, PR-AUC
-  (average precision), recall at 1% and 0.1% false-positive rate.
-- **Threshold metrics**, computed once from true positives, false positives and
-  false negatives summed over test years: precision, recall, F1.
-
-Averaging ranking metrics avoids pooling scores from separately trained yearly
-models, which would penalize models whose score scale changes between years
-(Forman and Scholz, 2010).
+- **ROC-AUC (primary), country-stratified**: the probability that a distressed
+  firm is ranked above a healthy firm from the same country and test year,
+  computed from all such pairs over the track's tasks (covariate-adjusted ROC;
+  Janes and Pepe, 2008). It never compares scores of separately trained yearly
+  models (Forman and Scholz, 2010) or across countries, whose share of each test
+  year is an artifact of EMIS coverage.
+- **Recall at 1% and 0.1% FPR**, stratified the same way: the share of
+  distressed firms caught when, in each country and year, the alert threshold
+  flags that fraction of healthy firms.
+- **PR-AUC** (average precision) per task, averaged over tasks; the base rate is
+  about 0.25–0.6%.
+- **Pooled ROC-AUC** per task, averaged over tasks, for comparison with prior
+  work.
+- **Precision, recall, F1** from true positives, false positives and false
+  negatives summed over tasks.
 
 Uncertainty comes from a firm-clustered bootstrap: firms are resampled with
 replacement (all their test rows together) and the metrics recomputed, giving
 95% percentile intervals. Paired differences between models use the same
-resamples.
-
-The primary table uses test years 2013–2015, where all horizons are available;
-`scripts/evaluate.py --all-years` uses every available year.
+resamples. Metrics are also reported for seen and unseen firms and per country.
+All compared models must cover the same tasks.
 
 ## Models and tuning
 

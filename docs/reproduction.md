@@ -15,7 +15,8 @@ uv run python scripts/build_temporal_splits.py
 uv run python scripts/summarize_data.py
 ```
 
-`build_temporal_splits.py` writes `data/temporal_splits/split_definition.json` and `cells.txt`;
+`build_temporal_splits.py` writes `data/temporal_splits/split_definition.json`,
+`cells.txt` and `tasks_h{h}.parquet` (task membership by `emis_id` and year);
 `summarize_data.py` writes row and positive counts by horizon, country and year
 to `results/generated/data_summary/`.
 
@@ -29,7 +30,8 @@ uv run python scripts/run_baselines.py
 Runs every model in `configs/baselines/standard.yaml` (logistic regression,
 XGBoost, LightGBM, CatBoost, RealMLP, TabM) on all horizons and test years.
 Useful options: `--models xgboost catboost`, `--horizons 1 3`,
-`--test-year 2014`, `--n-trials 5` for a quick run, `--save-models`.
+`--test-year 2014`, `--track main` for the 15 main-track tasks only,
+`--n-trials 5` for a quick run, `--save-models`.
 
 On macOS, run `realmlp`/`tabm` in a separate invocation from
 `xgboost`/`lightgbm`: torch and Homebrew's `libomp` cannot share a process.
@@ -66,10 +68,11 @@ Summarize with confidence intervals:
 
 ```bash
 uv run python scripts/evaluate.py
-uv run python scripts/evaluate.py --all-years
+uv run python scripts/evaluate.py --track full
 ```
 
-This writes to `results/generated/summary/`:
-`{primary,all_years}_summary.csv` (metrics with 95% intervals per model and
-horizon, for all, seen and unseen firms), `{primary,all_years}_paired.csv`
-(paired model differences) and `per_split.csv` (one row per model and split).
+This writes to `results/generated/summary/`: `{main,full}_summary.csv` (metrics
+with 95% intervals per model and horizon, for all firms, seen and unseen firms
+and each country), `{main,full}_paired.csv` (paired model differences) and
+`per_split.csv` (one row per model and task). All models must cover the same
+tasks.

@@ -3,7 +3,7 @@ from dataclasses import replace
 import pandas as pd
 import pytest
 
-from v4finbench.data.splits import SplitConfig, get_split, temporal_splits
+from v4finbench.data.splits import SplitConfig, get_split, in_track, temporal_splits
 
 
 def _frame(first_year: int, horizon: int = 1, positives: bool = True) -> pd.DataFrame:
@@ -62,3 +62,9 @@ def test_thin_splits_are_skipped(small_splits: SplitConfig) -> None:
     assert skipped[0].skip_reason == "few test positives"
     with pytest.raises(ValueError, match="skipped"):
         get_split(df, 1, 2012, small_splits)
+
+
+def test_main_track_selects_event_years_2018_to_2020() -> None:
+    assert in_track(1, 2017, "main") and in_track(5, 2015, "main")
+    assert not in_track(3, 2013, "main") and not in_track(1, 2019 + 1, "main")
+    assert in_track(3, 2013, "full")
