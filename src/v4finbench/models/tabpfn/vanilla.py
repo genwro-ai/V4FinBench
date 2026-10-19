@@ -25,6 +25,7 @@ class TabPFNRunConfig:
     random_state: int = 42
     device: str = "auto"
     model_path: str | None = None
+    sampling_cache_dir: str | None = None
 
 
 ClassifierFactory = Callable[[TabPFNRunConfig], Any]
@@ -40,6 +41,7 @@ def tabpfn_config_from_mapping(values: dict[str, Any]) -> TabPFNRunConfig:
         random_state=int(values.get("random_seed", values.get("random_state", 42))),
         device=values.get("device", "auto"),
         model_path=values.get("model_path"),
+        sampling_cache_dir=values.get("sampling_cache_dir"),
     )
 
 
@@ -62,6 +64,8 @@ def run_tabpfn(
             strategy=config.sampling_strategy,
             random_state=config.random_state,
             minority_to_majority_ratio=config.minority_to_majority_ratio,
+            device=config.device,
+            cache_dir=config.sampling_cache_dir,
         ),
     )
     X_context, y_context = select_context_samples(

@@ -1,3 +1,5 @@
+import sys
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -40,3 +42,16 @@ def labeled_frame() -> pd.DataFrame:
 @pytest.fixture
 def split_2012(labeled_frame: pd.DataFrame, small_splits: SplitConfig) -> TemporalSplit:
     return get_split(labeled_frame, horizon=1, test_year=2012, config=small_splits)
+
+
+@pytest.fixture
+def gbdt_safe():
+    if sys.platform == "darwin" and "torch" in sys.modules:
+        pytest.skip("torch and xgboost/lightgbm load clashing OpenMP runtimes on macOS")
+
+
+@pytest.fixture
+def torch_module():
+    if sys.platform == "darwin" and {"xgboost", "lightgbm"} & set(sys.modules):
+        pytest.skip("torch and xgboost/lightgbm load clashing OpenMP runtimes on macOS")
+    return pytest.importorskip("torch")

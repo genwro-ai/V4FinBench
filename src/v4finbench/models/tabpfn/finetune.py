@@ -38,6 +38,7 @@ class TabPFNFinetuneConfig:
     random_state: int = 42
     device: str = "auto"
     model_path: str | None = None
+    sampling_cache_dir: str | None = None
     epochs: int = 10
     learning_rate: float = 5e-6
     batch_size: int = 1024
@@ -67,6 +68,7 @@ def finetune_config_from_mapping(values: dict[str, Any]) -> TabPFNFinetuneConfig
         random_state=int(values.get("random_seed", values.get("random_state", 42))),
         device=values.get("device", "auto"),
         model_path=values.get("model_path"),
+        sampling_cache_dir=values.get("sampling_cache_dir"),
         epochs=int(finetuning.get("epochs", values.get("epochs", 10))),
         learning_rate=float(
             finetuning.get("learning_rate", values.get("learning_rate", 5e-6))
@@ -101,6 +103,8 @@ def finetune_evaluate_tabpfn(
             strategy=config.sampling_strategy,
             random_state=config.random_state,
             minority_to_majority_ratio=config.minority_to_majority_ratio,
+            device=config.device,
+            cache_dir=config.sampling_cache_dir,
         ),
     )
     X_val = np.asarray(data.X_val, dtype=np.float64)
@@ -132,9 +136,9 @@ def finetune_evaluate_tabpfn(
         eval_classifier.fit(X_context, y_context)
         val_score = predict_proba_batched(eval_classifier, X_val)
         threshold = find_best_f1_threshold(data.y_val, val_score)
-        validation_f1 = binary_classification_metrics(
-            data.y_val, val_score, threshold
-        )["f1"]
+        validation_f1 = binary_classification_metrics(data.y_val, val_score, threshold)[
+            "f1"
+        ]
         test_score = predict_proba_batched(eval_classifier, X_test)
 
         result = RunResult(

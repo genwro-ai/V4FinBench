@@ -1,5 +1,3 @@
-import sys
-
 import optuna
 import pytest
 
@@ -30,7 +28,9 @@ def test_suggest_infers_int_and_float_ranges() -> None:
 
 
 @pytest.mark.parametrize("model_name", ["logistic_regression", "xgboost"])
-def test_run_baseline(labeled_frame, split_2012, model_name) -> None:
+def test_run_baseline(request, labeled_frame, split_2012, model_name) -> None:
+    if model_name == "xgboost":
+        request.getfixturevalue("gbdt_safe")
     result = run_baseline(labeled_frame, split_2012, model_name, CONFIG)
 
     assert (result.model, result.horizon, result.test_year) == (model_name, 1, 2012)
@@ -40,11 +40,7 @@ def test_run_baseline(labeled_frame, split_2012, model_name) -> None:
     assert len(result.test_scores) == len(split_2012.test_idx)
 
 
-@pytest.mark.skipif(
-    sys.platform == "darwin",
-    reason="torch and xgboost/lightgbm load clashing OpenMP runtimes on macOS",
-)
-def test_run_baseline_realmlp(labeled_frame, split_2012) -> None:
+def test_run_baseline_realmlp(torch_module, labeled_frame, split_2012) -> None:
     pytest.importorskip("pytabkit")
     result = run_baseline(labeled_frame, split_2012, "realmlp", CONFIG)
 

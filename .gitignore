@@ -221,6 +221,7 @@ __marimo__/
 data/raw/*
 data/processed/*
 data/temporal_splits/*
+data/cache/
 results/generated/*
 economic-data/
 financial-distress-foundational-models/

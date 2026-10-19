@@ -149,4 +149,8 @@ threshold of the selected model maximizes validation F1.
 `v4finbench.models.tabpfn.sampling` implements `none`, `oversample`,
 `undersample` and `prototype_undersampling`. Undersampling targets a
 minority-to-majority ratio of 0.3. Prototype undersampling clusters the majority
-class and keeps the real observations closest to the cluster centers.
+class with k-means (in torch, on CUDA, Apple GPU or CPU, iterated until the
+mean squared distance improves by less than 0.01%) and keeps the real
+observations closest to the cluster centers. The selected rows are cached per
+training set (`sampling_cache_dir`), so every model and tuning trial on a task
+reuses them.

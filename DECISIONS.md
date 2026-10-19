@@ -13,6 +13,12 @@ preprint code, and why. Full definitions are in
 - Horizon `h = 0` (current-year distress) was dropped; horizons are `h = 1..5`.
 - TabPFN is out of scope for now (to be revisited with TabPFN 3.5, TabICL and
   proper tuning). Its code is kept but was not re-run.
+- Prototype undersampling (for TabPFN contexts and fine-tuning) now runs a
+  converged k-means in torch (CUDA, Apple GPU or CPU) instead of
+  `MiniBatchKMeans`, which stopped early: on the largest task the mean squared
+  distance from a healthy firm to its nearest prototype drops from 51.2 to 19.1.
+  It takes about 35 s on an Apple GPU (well under a second expected on an A100),
+  and the selected rows are cached per training set.
 - Slurm and bash reproduction scripts and the Kaggle download script were
   removed; Athena scripts will be written later.
 - The country-transfer experiment is out of scope for now.
