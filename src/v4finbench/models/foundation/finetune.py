@@ -24,7 +24,7 @@ from v4finbench.models.foundation.sampling import (
 )
 
 SAMPLING_NAMES = {
-    "none": "full",
+    "none": "sample",
     "undersample": "undersample",
     "prototype_undersampling": "proto",
 }
@@ -82,6 +82,7 @@ def run_finetune(
 ) -> RunResult:
     output_dir = Path(output_dir)
     data = prepare_split(df, split.train_idx, split.val_idx, split.test_idx)
+    start = time.perf_counter()
     X_train, y_train = apply_sampling(
         np.asarray(data.X_train, dtype=np.float32),
         data.y_train,
@@ -90,19 +91,34 @@ def run_finetune(
             minority_to_majority_ratio=config["ratio"],
             random_state=random_state,
             cache_dir=config.get("sampling_cache_dir"),
+            max_rows=config.get("max_rows"),
         ),
     )
+    sampling_seconds = time.perf_counter() - start
     X_val = np.asarray(data.X_val, dtype=np.float32)
 
     best: dict[str, Any] = {"score": -np.inf}
-    fit_start = time.perf_counter()
+    trials: list[dict[str, Any]] = []
     for learning_rate in config["learning_rates"]:
         run_dir = output_dir / f"lr{learning_rate:g}"
         model = make_finetuner(estimator, learning_rate, config, random_state)
+        start = time.perf_counter()
         model.fit(X_train, y_train, X_val=X_val, y_val=data.y_val, output_dir=run_dir)
+        train_seconds = time.perf_counter() - start
         model = InContextModel(model)
+        start = time.perf_counter()
         val_score = model.predict_proba(X_val)[:, 1]
+        val_inference_seconds = time.perf_counter() - start
         score = average_precision_score(data.y_val, val_score)
+        trials.append(
+            {
+                "learning_rate": learning_rate,
+                "validation_pr_auc": score,
+                "best_epoch": best_checkpoint(run_dir)[0],
+                "train_seconds": round(train_seconds, 2),
+                "val_inference_seconds": round(val_inference_seconds, 2),
+            }
+        )
         if score > best["score"]:
             if "run_dir" in best:
                 shutil.rmtree(best["run_dir"], ignore_errors=True)
@@ -113,18 +129,18 @@ def run_finetune(
                 "run_dir": run_dir,
                 "val_score": val_score,
                 "checkpoint": best_checkpoint(run_dir),
+                "trial": trials[-1],
             }
         else:
             shutil.rmtree(run_dir, ignore_errors=True)
-    fit_seconds = time.perf_counter() - fit_start
 
     threshold = find_best_f1_threshold(data.y_val, best["val_score"])
     validation_f1 = binary_classification_metrics(
         data.y_val, best["val_score"], threshold
     )["f1"]
-    predict_start = time.perf_counter()
+    start = time.perf_counter()
     test_score = best["model"].predict_proba(data.X_test)[:, 1]
-    predict_seconds = time.perf_counter() - predict_start
+    test_inference_seconds = time.perf_counter() - start
 
     unseen = unseen_firm_mask(df, split.train_idx, split.test_idx)
     return RunResult(
@@ -139,8 +155,16 @@ def run_finetune(
             "validation_pr_auc": best["score"],
             "weights": best["checkpoint"][1],
             "n_train_rows": int(len(y_train)),
-            "fit_seconds": round(fit_seconds, 2),
-            "predict_seconds": round(predict_seconds, 4),
+            "sampling_seconds": round(sampling_seconds, 2),
+            "train_seconds": best["trial"]["train_seconds"],
+            "val_inference_seconds": best["trial"]["val_inference_seconds"],
+            "test_inference_seconds": round(test_inference_seconds, 2),
+            "test_rows_per_second": round(len(test_score) / test_inference_seconds),
+            "tuning_train_seconds": round(sum(t["train_seconds"] for t in trials), 2),
+            "tuning_val_inference_seconds": round(
+                sum(t["val_inference_seconds"] for t in trials), 2
+            ),
+            "trials": trials,
         },
         test_idx=split.test_idx,
         test_labels=data.y_test,

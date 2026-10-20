@@ -6,7 +6,7 @@ from v4finbench.models.foundation.finetune import best_checkpoint, finetuned_mod
 
 
 def test_finetuned_model_names() -> None:
-    assert finetuned_model_name("tabpfn", "none") == "tabpfn_finetuned_full"
+    assert finetuned_model_name("tabpfn", "none") == "tabpfn_finetuned_sample"
     assert (
         finetuned_model_name("tabicl", "prototype_undersampling")
         == "tabicl_finetuned_proto"

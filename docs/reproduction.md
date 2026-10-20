@@ -44,8 +44,9 @@ TabPFN-3.5 weights require an accepted license and a Prior Labs API key
 set `TABPFN_MODEL_CACHE_DIR`.
 
 In-context (no training) runs through the baseline runner with its own config:
-TabPFN and TabICL, each with the full training set, random undersampling,
-random oversampling or prototype undersampling as context.
+TabPFN and TabICL, each with a 100k-row stratified sample of the training set,
+random undersampling, random oversampling or prototype undersampling as context
+(all capped at 100k rows).
 
 ```bash
 uv sync --extra tabpfn
@@ -80,7 +81,7 @@ This installs the environment, builds labels and task files (including
 submit one array per model, one element per task:
 
 ```bash
-RUNNER=baseline CONFIG=configs/foundation/in_context.yaml MODEL=tabpfn_full \
+RUNNER=baseline CONFIG=configs/foundation/in_context.yaml MODEL=tabpfn_sample \
   sbatch --array=0-14 slurm/task.sbatch
 RUNNER=finetune ESTIMATOR=tabpfn SAMPLING=none sbatch --array=0-14 slurm/task.sbatch
 ```

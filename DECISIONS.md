@@ -12,11 +12,17 @@ preprint code, and why. Full definitions are in
   walk-forward evaluation remains.
 - Horizon `h = 0` (current-year distress) was dropped; horizons are `h = 1..5`.
 - Foundation models: TabPFN-3.5 (`tabpfn==9.2.0`) and TabICL v2
-  (`tabicl==2.2.0`), on the main track. In context (no training): each with the
-  full, undersampled, oversampled or prototype-undersampled training set as
-  context, default model settings, no hyperparameter search (validation only
-  sets the threshold). Fine-tuned with the libraries' built-in fine-tuners:
-  full, undersampled or prototype-undersampled training data (no oversampling:
+  (`tabicl==2.2.0`), on the main track. Contexts and fine-tuning sets are
+  capped at 100k rows (a stratified random sample keeping each variant's class
+  ratio): with the full training set (up to 574k rows) TabPFN-3.5 did not
+  finish a task in 15 minutes, fine-tuning ran out of the A100's 40 GB and
+  TabICL exceeded 120 GB of host memory; Athena has only 40 GB A100s. Variants
+  are therefore named `sample` (natural base rate, 100k rows) rather than
+  "full". In context (no training): `sample`, undersampled, oversampled or
+  prototype-undersampled training set as context, default model settings, no
+  hyperparameter search (validation only sets the threshold). Fine-tuned with
+  the libraries' built-in fine-tuners: `sample`, undersampled or
+  prototype-undersampled training data (no oversampling:
   duplicated positives would sit in both the context and query of a batch), up
   to 10 epochs with early stopping on validation ROC-AUC, learning rates 1e-5,
   3e-5 and 1e-4, the run with the best validation PR-AUC kept with its

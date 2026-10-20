@@ -38,38 +38,51 @@ def run_baseline(
     n_trials = (n_trials or config["n_trials"]) if search else 1
 
     best: dict[str, Any] = {"score": -np.inf}
+    trials: list[dict[str, Any]] = []
 
     def objective(trial: optuna.Trial) -> float:
         params = {
             **fixed,
             **{name: suggest(trial, name, space) for name, space in search.items()},
         }
+        start = time.perf_counter()
         model = fit_model(
             estimator, params, data, random_state, config.get("early_stopping_rounds")
         )
-        score = average_precision_score(data.y_val, positive_score(model, data.X_val))
+        sampling_seconds = getattr(model, "sampling_seconds", 0.0)
+        train_seconds = time.perf_counter() - start - sampling_seconds
+        start = time.perf_counter()
+        val_score = positive_score(model, data.X_val)
+        val_inference_seconds = time.perf_counter() - start
+        score = average_precision_score(data.y_val, val_score)
+        trials.append(
+            {
+                "params": params,
+                "validation_pr_auc": score,
+                "sampling_seconds": round(sampling_seconds, 2),
+                "train_seconds": round(train_seconds, 2),
+                "val_inference_seconds": round(val_inference_seconds, 2),
+            }
+        )
         if score > best["score"]:
-            best.update(score=score, model=model, params=params)
+            best.update(score=score, model=model, val_score=val_score, trial=trials[-1])
         return score
 
     optuna.logging.set_verbosity(optuna.logging.WARNING)
     study = optuna.create_study(
         direction="maximize", sampler=optuna.samplers.TPESampler(seed=random_state)
     )
-    fit_start = time.perf_counter()
     study.optimize(objective, n_trials=n_trials, show_progress_bar=progress)
-    fit_seconds = time.perf_counter() - fit_start
 
-    model = best["model"]
-    val_score = positive_score(model, data.X_val)
-    threshold = find_best_f1_threshold(data.y_val, val_score)
-    validation_f1 = binary_classification_metrics(data.y_val, val_score, threshold)[
-        "f1"
-    ]
+    model, selected = best["model"], best["trial"]
+    threshold = find_best_f1_threshold(data.y_val, best["val_score"])
+    validation_f1 = binary_classification_metrics(
+        data.y_val, best["val_score"], threshold
+    )["f1"]
 
-    predict_start = time.perf_counter()
+    start = time.perf_counter()
     test_score = positive_score(model, data.X_test)
-    predict_seconds = time.perf_counter() - predict_start
+    test_inference_seconds = time.perf_counter() - start
 
     unseen = unseen_firm_mask(df, split.train_idx, split.test_idx)
     if output_dir is not None:
@@ -77,7 +90,9 @@ def run_baseline(
         output_dir.mkdir(parents=True, exist_ok=True)
         joblib.dump(model, output_dir / f"{model_name}.joblib")
         (output_dir / f"{model_name}.params.json").write_text(
-            json.dumps({"params": best["params"], "threshold": threshold}, indent=2),
+            json.dumps(
+                {"params": selected["params"], "threshold": threshold}, indent=2
+            ),
             encoding="utf-8",
         )
 
@@ -88,11 +103,19 @@ def run_baseline(
         validation_f1=validation_f1,
         metrics=evaluate_test_scores(data.y_test, test_score, threshold, unseen),
         details={
-            "best_params": best["params"],
+            "best_params": selected["params"],
             "validation_pr_auc": best["score"],
             "n_trials": n_trials,
-            "fit_seconds": round(fit_seconds, 2),
-            "predict_seconds": round(predict_seconds, 4),
+            "sampling_seconds": selected["sampling_seconds"],
+            "train_seconds": selected["train_seconds"],
+            "val_inference_seconds": selected["val_inference_seconds"],
+            "test_inference_seconds": round(test_inference_seconds, 2),
+            "test_rows_per_second": round(len(test_score) / test_inference_seconds),
+            "tuning_train_seconds": round(sum(t["train_seconds"] for t in trials), 2),
+            "tuning_val_inference_seconds": round(
+                sum(t["val_inference_seconds"] for t in trials), 2
+            ),
+            "trials": trials,
         },
         test_idx=split.test_idx,
         test_labels=data.y_test,

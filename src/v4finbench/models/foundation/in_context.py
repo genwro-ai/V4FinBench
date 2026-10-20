@@ -1,3 +1,4 @@
+import time
 from typing import Any
 
 import numpy as np
@@ -11,8 +12,9 @@ PREDICT_CHUNK_ROWS = 50_000
 
 
 class InContextModel:
-    def __init__(self, model):
+    def __init__(self, model, sampling_seconds: float = 0.0):
         self.model = model
+        self.sampling_seconds = sampling_seconds
 
     def predict_proba(self, X) -> np.ndarray:
         X = np.asarray(X, dtype=np.float32)
@@ -31,6 +33,7 @@ def sampling_config(params: dict[str, Any], random_state: int) -> SamplingConfig
         random_state=random_state,
         device=params.pop("sampling_device", "auto"),
         cache_dir=params.pop("sampling_cache_dir", None),
+        max_rows=params.pop("max_rows", None),
     )
 
 
@@ -39,8 +42,10 @@ def fit_in_context(
 ) -> InContextModel:
     params = dict(params)
     sampling = sampling_config(params, random_state)
+    start = time.perf_counter()
     X_context, y_context = apply_sampling(np.asarray(X, dtype=np.float32), y, sampling)
+    sampling_seconds = time.perf_counter() - start
     if estimator == "tabpfn":
         params.setdefault("ignore_pretraining_limits", True)
     model = ESTIMATORS[estimator](random_state=random_state, **params)
-    return InContextModel(model.fit(X_context, y_context))
+    return InContextModel(model.fit(X_context, y_context), sampling_seconds)

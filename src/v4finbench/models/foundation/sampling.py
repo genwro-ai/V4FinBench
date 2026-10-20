@@ -24,6 +24,7 @@ class SamplingConfig:
     minority_to_majority_ratio: float = 0.3
     device: str = "auto"
     cache_dir: str | None = None
+    max_rows: int | None = None
 
 
 def apply_sampling(
@@ -32,8 +33,27 @@ def apply_sampling(
     config: SamplingConfig | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     config = config or SamplingConfig()
-    X_train = np.asarray(X_train)
-    y_train = np.asarray(y_train).astype(int)
+    X_sampled, y_sampled = _resample(
+        np.asarray(X_train), np.asarray(y_train).astype(int), config
+    )
+    if config.max_rows is not None and len(y_sampled) > config.max_rows:
+        keep = stratified_subsample(y_sampled, config.max_rows, config.random_state)
+        X_sampled, y_sampled = X_sampled[keep], y_sampled[keep]
+    return X_sampled, y_sampled
+
+
+def stratified_subsample(y: np.ndarray, n_rows: int, random_state: int) -> np.ndarray:
+    rng = np.random.default_rng(random_state)
+    keep = [
+        rng.choice(index, round(n_rows * len(index) / len(y)), replace=False)
+        for index in (np.flatnonzero(y == label) for label in np.unique(y))
+    ]
+    return np.sort(np.concatenate(keep))
+
+
+def _resample(
+    X_train: np.ndarray, y_train: np.ndarray, config: SamplingConfig
+) -> tuple[np.ndarray, np.ndarray]:
 
     if config.strategy == "none":
         return X_train, y_train

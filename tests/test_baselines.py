@@ -35,6 +35,11 @@ def test_run_baseline(request, labeled_frame, split_2012, model_name) -> None:
 
     assert (result.model, result.horizon, result.test_year) == (model_name, 1, 2012)
     assert result.details["n_trials"] == 2
+    assert len(result.details["trials"]) == 2
+    assert {"train_seconds", "val_inference_seconds"} <= set(
+        result.details["trials"][0]
+    )
+    assert result.details["test_inference_seconds"] >= 0
     assert result.metrics["roc_auc"] > 0.9
     assert result.metrics["unseen_frac"] == 0.5
     assert len(result.test_scores) == len(split_2012.test_idx)

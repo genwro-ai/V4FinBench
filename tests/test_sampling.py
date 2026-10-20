@@ -4,6 +4,7 @@ from v4finbench.models.foundation.sampling import (
     SamplingConfig,
     apply_sampling,
     kmeans_prototypes,
+    stratified_subsample,
 )
 
 
@@ -80,3 +81,24 @@ def test_no_sampling_returns_inputs_unchanged() -> None:
 
     np.testing.assert_array_equal(X_sampled, X)
     np.testing.assert_array_equal(y_sampled, y)
+
+
+def test_stratified_subsample_keeps_class_ratio() -> None:
+    y = np.array([1] * 30 + [0] * 970)
+    keep = stratified_subsample(y, 100, random_state=0)
+
+    assert len(keep) == 100
+    assert int(y[keep].sum()) == 3
+
+
+def test_max_rows_caps_oversampled_context() -> None:
+    X = np.arange(1000, dtype=float).reshape(-1, 1)
+    y = np.array([1] * 30 + [0] * 970)
+    config = SamplingConfig(
+        strategy="oversample", minority_to_majority_ratio=0.5, max_rows=150
+    )
+
+    _, y_sampled = apply_sampling(X, y, config)
+
+    assert len(y_sampled) == 150
+    assert int(y_sampled.sum()) == 50

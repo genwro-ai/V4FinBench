@@ -2,10 +2,11 @@ n_trials: 1
 
 sampling: &sampling
   ratio: 0.3
+  max_rows: 100000
   sampling_cache_dir: data/cache/sampling
 
 models:
-  tabpfn_full:
+  tabpfn_sample:
     estimator: tabpfn
     params: {<<: *sampling, sampling: none}
   tabpfn_undersample:
@@ -18,7 +19,7 @@ models:
     estimator: tabpfn
     params: {<<: *sampling, sampling: prototype_undersampling}
 
-  tabicl_full:
+  tabicl_sample:
     estimator: tabicl
     params: {<<: *sampling, sampling: none}
   tabicl_undersample:

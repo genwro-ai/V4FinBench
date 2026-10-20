@@ -29,7 +29,9 @@ class RunResult:
 
     def to_row(self) -> dict[str, Any]:
         details = {
-            key: json.dumps(value, sort_keys=True) if isinstance(value, dict) else value
+            key: json.dumps(value, sort_keys=True, default=str)
+            if isinstance(value, dict | list)
+            else value
             for key, value in self.details.items()
         }
         return {

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # One array element = one (horizon, test year) line of TASKS.
-#   RUNNER=baseline CONFIG=configs/foundation/in_context.yaml MODEL=tabpfn_full \
+#   RUNNER=baseline CONFIG=configs/foundation/in_context.yaml MODEL=tabpfn_sample \
 #     sbatch --array=0-14 slurm/task.sbatch
 #   RUNNER=finetune ESTIMATOR=tabpfn SAMPLING=none sbatch --array=0-14 slurm/task.sbatch
 #SBATCH --job-name=v4finbench

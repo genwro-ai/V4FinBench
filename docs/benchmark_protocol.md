@@ -147,9 +147,11 @@ threshold of the selected model maximizes validation F1.
 ## Foundation models
 
 TabPFN-3.5 and TabICL v2 are evaluated in context, with the training set as
-context: full, randomly undersampled, randomly oversampled or prototype
-undersampled (minority-to-majority ratio 0.3). Fine-tuned variants train on the
-full, undersampled or prototype-undersampled training set for up to 10 epochs
+context: a stratified random sample at the natural base rate (`sample`),
+randomly undersampled, randomly oversampled or prototype undersampled
+(minority-to-majority ratio 0.3). Every context is capped at 100k rows by a
+stratified random sample that keeps its class ratio. Fine-tuned variants train
+on the `sample`, undersampled or prototype-undersampled training set for up to 10 epochs
 with early stopping on validation ROC-AUC (the metrics the libraries offer);
 among learning rates 1e-5, 3e-5 and 1e-4 the run with the best validation
 PR-AUC is kept, together with its best-epoch weights. If no epoch beats the
