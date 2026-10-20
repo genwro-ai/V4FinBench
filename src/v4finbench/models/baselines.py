@@ -1,213 +1,208 @@
-from collections.abc import Iterable
-from dataclasses import dataclass
+import json
+import time
 from pathlib import Path
 from typing import Any
 
 import joblib
 import numpy as np
+import optuna
 import pandas as pd
-from catboost import CatBoostClassifier
-from lightgbm import LGBMClassifier
-from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import ParameterGrid, ParameterSampler
-from sklearn.neural_network import MLPClassifier
-from tqdm.auto import tqdm
-from xgboost import XGBClassifier
+from sklearn.metrics import average_precision_score
 
-from v4finbench.data.preprocessing import (
-    preprocess_train_val_test,
-    split_features_target,
-)
+from v4finbench.data.preprocessing import SplitData, prepare_split
+from v4finbench.data.splits import TemporalSplit
 from v4finbench.evaluation.metrics import binary_classification_metrics
+from v4finbench.evaluation.protocol import evaluate_test_scores, unseen_firm_mask
+from v4finbench.evaluation.results import RunResult
 from v4finbench.evaluation.thresholds import find_best_f1_threshold
 
-BASELINE_MODEL_NAMES = [
-    "logistic_regression",
-    "mlp",
-    "random_forest",
-    "xgboost",
-    "lightgbm",
-    "catboost",
-]
+MAX_TREES = 5000
 
 
-@dataclass(frozen=True)
-class BaselineRunResult:
-    model_name: str
-    horizon: int
-    fold: int
-    best_params: dict[str, Any]
-    validation_f1: float
-    metrics: dict[str, float]
-
-
-def train_evaluate_baseline(
+def run_baseline(
     df: pd.DataFrame,
-    train_idx: np.ndarray,
-    val_idx: np.ndarray,
-    test_idx: np.ndarray,
+    split: TemporalSplit,
     model_name: str,
-    param_grid: dict[str, list[Any]],
-    horizon: int,
-    fold: int,
-    target_col: str = "main_label",
+    config: dict[str, Any],
     random_state: int = 42,
-    max_candidates: int | None = None,
+    n_trials: int | None = None,
     output_dir: str | Path | None = None,
     progress: bool = False,
-) -> BaselineRunResult:
-    prepared = split_features_target(df, target_col=target_col)
-    X_train_raw = prepared.X.iloc[train_idx]
-    X_val_raw = prepared.X.iloc[val_idx]
-    X_test_raw = prepared.X.iloc[test_idx]
-    y_train = prepared.y.iloc[train_idx].to_numpy()
-    y_val = prepared.y.iloc[val_idx].to_numpy()
-    y_test = prepared.y.iloc[test_idx].to_numpy()
+) -> RunResult:
+    data = prepare_split(df, split.train_idx, split.val_idx, split.test_idx)
+    model_config = config["models"][model_name]
+    estimator = model_config.get("estimator", model_name)
+    search = model_config.get("search", {})
+    fixed = model_config.get("params", {})
+    n_trials = (n_trials or config["n_trials"]) if search else 1
 
-    X_train, X_val, X_test, preprocessor = preprocess_train_val_test(
-        X_train_raw,
-        X_val_raw,
-        X_test_raw,
-    )
+    best: dict[str, Any] = {"score": -np.inf}
+    trials: list[dict[str, Any]] = []
 
-    best_model = None
-    best_params: dict[str, Any] | None = None
-    best_threshold = 0.5
-    best_validation_f1 = -np.inf
-
-    candidates = iter_param_candidates(param_grid, max_candidates, random_state)
-    if progress:
-        candidates = tqdm(
-            candidates,
-            desc=f"{model_name} h={horizon} fold={fold} candidates",
-            leave=False,
+    def objective(trial: optuna.Trial) -> float:
+        params = {
+            **fixed,
+            **{name: suggest(trial, name, space) for name, space in search.items()},
+        }
+        start = time.perf_counter()
+        model = fit_model(
+            estimator, params, data, random_state, config.get("early_stopping_rounds")
         )
+        sampling_seconds = getattr(model, "sampling_seconds", 0.0)
+        train_seconds = time.perf_counter() - start - sampling_seconds
+        start = time.perf_counter()
+        val_score = positive_score(model, data.X_val)
+        val_inference_seconds = time.perf_counter() - start
+        score = average_precision_score(data.y_val, val_score)
+        trials.append(
+            {
+                "params": params,
+                "validation_pr_auc": score,
+                "sampling_seconds": round(sampling_seconds, 2),
+                "train_seconds": round(train_seconds, 2),
+                "val_inference_seconds": round(val_inference_seconds, 2),
+            }
+        )
+        if score > best["score"]:
+            best.update(score=score, model=model, val_score=val_score, trial=trials[-1])
+        return score
 
-    for params in candidates:
-        model = make_baseline_model(model_name, params, random_state)
-        model.fit(X_train, y_train)
-        val_score = predict_positive_score(model, X_val)
-        threshold = find_best_f1_threshold(y_val, val_score)
-        val_metrics = binary_classification_metrics(y_val, val_score, threshold)
-        validation_f1 = val_metrics["f1"]
+    optuna.logging.set_verbosity(optuna.logging.WARNING)
+    study = optuna.create_study(
+        direction="maximize", sampler=optuna.samplers.TPESampler(seed=random_state)
+    )
+    study.optimize(objective, n_trials=n_trials, show_progress_bar=progress)
 
-        if validation_f1 > best_validation_f1:
-            best_validation_f1 = validation_f1
-            best_params = params
-            best_model = model
-            best_threshold = threshold
+    model, selected = best["model"], best["trial"]
+    threshold = find_best_f1_threshold(data.y_val, best["val_score"])
+    validation_f1 = binary_classification_metrics(
+        data.y_val, best["val_score"], threshold
+    )["f1"]
 
-    if best_model is None or best_params is None:
-        raise RuntimeError(f"No successful candidate for model {model_name}")
+    start = time.perf_counter()
+    test_score = positive_score(model, data.X_test)
+    test_inference_seconds = time.perf_counter() - start
 
-    test_score = predict_positive_score(best_model, X_test)
-    metrics = binary_classification_metrics(y_test, test_score, best_threshold)
-
+    unseen = unseen_firm_mask(df, split.train_idx, split.test_idx)
     if output_dir is not None:
-        save_baseline_artifacts(
-            output_dir=Path(output_dir),
-            model_name=model_name,
-            model=best_model,
-            preprocessor=preprocessor,
-            threshold=best_threshold,
-            params=best_params,
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        joblib.dump(model, output_dir / f"{model_name}.joblib")
+        (output_dir / f"{model_name}.params.json").write_text(
+            json.dumps(
+                {"params": selected["params"], "threshold": threshold}, indent=2
+            ),
+            encoding="utf-8",
         )
 
-    return BaselineRunResult(
-        model_name=model_name,
-        horizon=horizon,
-        fold=fold,
-        best_params=best_params,
-        validation_f1=float(best_validation_f1),
-        metrics=metrics,
+    return RunResult(
+        model=model_name,
+        horizon=split.horizon,
+        test_year=split.test_year,
+        validation_f1=validation_f1,
+        metrics=evaluate_test_scores(data.y_test, test_score, threshold, unseen),
+        details={
+            "best_params": selected["params"],
+            "validation_pr_auc": best["score"],
+            "n_trials": n_trials,
+            "sampling_seconds": selected["sampling_seconds"],
+            "train_seconds": selected["train_seconds"],
+            "val_inference_seconds": selected["val_inference_seconds"],
+            "test_inference_seconds": round(test_inference_seconds, 2),
+            "test_rows_per_second": round(len(test_score) / test_inference_seconds),
+            "tuning_train_seconds": round(sum(t["train_seconds"] for t in trials), 2),
+            "tuning_val_inference_seconds": round(
+                sum(t["val_inference_seconds"] for t in trials), 2
+            ),
+            "trials": trials,
+        },
+        test_idx=split.test_idx,
+        test_labels=data.y_test,
+        test_scores=test_score,
+        unseen_firm=unseen,
     )
 
 
-def iter_param_candidates(
-    param_grid: dict[str, list[Any]],
-    max_candidates: int | None,
-    random_state: int,
-) -> Iterable[dict[str, Any]]:
-    param_grid = normalize_param_grid(param_grid)
-    if max_candidates is None:
-        return list(ParameterGrid(param_grid))
-    return list(
-        ParameterSampler(
-            param_grid,
-            n_iter=max_candidates,
-            random_state=random_state,
-        )
-    )
+def suggest(trial: optuna.Trial, name: str, space: dict[str, Any]) -> Any:
+    if "choices" in space:
+        index = trial.suggest_categorical(name, list(range(len(space["choices"]))))
+        return space["choices"][index]
+    low, high, log = space["low"], space["high"], space.get("log", False)
+    if isinstance(low, int) and isinstance(high, int):
+        return trial.suggest_int(name, low, high, log=log)
+    return trial.suggest_float(name, low, high, log=log)
 
 
-def normalize_param_grid(param_grid: dict[str, Any]) -> dict[str, list[Any]]:
-    normalized = {}
-    for key, value in param_grid.items():
-        if isinstance(value, list):
-            normalized[key] = value
-        else:
-            normalized[key] = [value]
-    return normalized
-
-
-def make_baseline_model(
-    model_name: str,
+def fit_model(
+    estimator: str,
     params: dict[str, Any],
+    data: SplitData,
     random_state: int,
+    early_stopping_rounds: int | None,
 ):
-    params = dict(params)
-    params.setdefault("random_state", random_state)
+    X, y, X_val, y_val = data.X_train, data.y_train, data.X_val, data.y_val
+    if estimator == "logistic_regression":
+        return LogisticRegression(
+            max_iter=1000, random_state=random_state, **params
+        ).fit(X, y)
+    if estimator == "xgboost":
+        from xgboost import XGBClassifier
 
-    if model_name == "logistic_regression":
-        params.setdefault("max_iter", 1000)
-        params.setdefault("solver", "lbfgs")
-        return LogisticRegression(**params)
-    if model_name == "mlp":
-        params.setdefault("max_iter", 300)
-        return MLPClassifier(**params)
-    if model_name == "random_forest":
-        params.setdefault("n_jobs", -1)
-        return RandomForestClassifier(**params)
-    if model_name == "xgboost":
-        params.setdefault("eval_metric", "logloss")
-        params.setdefault("n_jobs", -1)
-        return XGBClassifier(**params)
-    if model_name == "lightgbm":
-        params.setdefault("n_jobs", -1)
-        params.setdefault("verbosity", -1)
-        return LGBMClassifier(**params)
-    if model_name == "catboost":
-        params.setdefault("verbose", False)
-        return CatBoostClassifier(**params)
+        model = XGBClassifier(
+            n_estimators=MAX_TREES,
+            early_stopping_rounds=early_stopping_rounds,
+            eval_metric="aucpr",
+            n_jobs=-1,
+            random_state=random_state,
+            **params,
+        )
+        return model.fit(X, y, eval_set=[(X_val, y_val)], verbose=False)
+    if estimator == "lightgbm":
+        from lightgbm import LGBMClassifier, early_stopping
 
-    raise ValueError(f"Unknown baseline model: {model_name}")
+        model = LGBMClassifier(
+            n_estimators=MAX_TREES,
+            metric="average_precision",
+            subsample_freq=1,
+            n_jobs=-1,
+            verbosity=-1,
+            random_state=random_state,
+            **params,
+        )
+        return model.fit(
+            X,
+            y,
+            eval_set=[(X_val, y_val)],
+            callbacks=[early_stopping(early_stopping_rounds, verbose=False)],
+        )
+    if estimator == "catboost":
+        from catboost import CatBoostClassifier
+
+        model = CatBoostClassifier(
+            iterations=MAX_TREES,
+            eval_metric="PRAUC",
+            od_type="Iter",
+            od_wait=early_stopping_rounds,
+            use_best_model=True,
+            bootstrap_type="Bayesian",
+            verbose=False,
+            allow_writing_files=False,
+            random_seed=random_state,
+            **params,
+        )
+        return model.fit(X, y, eval_set=(X_val, y_val))
+    if estimator in ("realmlp", "tabm"):
+        from pytabkit import RealMLP_TD_Classifier, TabM_D_Classifier
+
+        cls = RealMLP_TD_Classifier if estimator == "realmlp" else TabM_D_Classifier
+        return cls(random_state=random_state, **params).fit(X, y, X_val, y_val)
+    if estimator in ("tabpfn", "tabicl"):
+        from v4finbench.models.foundation.in_context import fit_in_context
+
+        return fit_in_context(estimator, params, X, y, random_state)
+    raise ValueError(f"Unknown estimator: {estimator}")
 
 
-def predict_positive_score(model, X: pd.DataFrame) -> np.ndarray:
-    if hasattr(model, "predict_proba"):
-        return model.predict_proba(X)[:, 1]
-    if hasattr(model, "decision_function"):
-        return model.decision_function(X)
-    return model.predict(X)
-
-
-def save_baseline_artifacts(
-    output_dir: Path,
-    model_name: str,
-    model,
-    preprocessor,
-    threshold: float,
-    params: dict[str, Any],
-) -> None:
-    output_dir.mkdir(parents=True, exist_ok=True)
-    joblib.dump(model, output_dir / f"{model_name}.joblib")
-    joblib.dump(preprocessor, output_dir / f"{model_name}_preprocessor.joblib")
-    (output_dir / f"{model_name}_threshold.txt").write_text(
-        str(threshold),
-        encoding="utf-8",
-    )
-    (output_dir / f"{model_name}_params.json").write_text(
-        pd.Series(params).to_json(indent=2),
-        encoding="utf-8",
-    )
+def positive_score(model, X: pd.DataFrame) -> np.ndarray:
+    return model.predict_proba(X)[:, 1]

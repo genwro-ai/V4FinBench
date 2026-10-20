@@ -1,0 +1,9 @@
+epochs: 10
+patience: 3
+batch_rows: 10000
+eval_metric: roc_auc
+learning_rates: [1.0e-5, 3.0e-5, 1.0e-4]
+ratio: 0.3
+max_rows: 100000
+sampling_cache_dir: data/cache/sampling
+device: auto
