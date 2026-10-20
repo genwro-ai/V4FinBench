@@ -23,8 +23,9 @@ preprint code, and why. Full definitions are in
   hyperparameter search (validation only sets the threshold). Fine-tuned with
   the libraries' built-in fine-tuners: `sample`, undersampled or
   prototype-undersampled training data (no oversampling:
-  duplicated positives would sit in both the context and query of a batch), up
-  to 10 epochs with early stopping on validation ROC-AUC, learning rates 1e-5,
+  duplicated positives would sit in both the context and query of a batch),
+  fine-tuning batches of 10k rows (TabPFN's default 50k ran out of the A100's
+  40 GB), up to 10 epochs with early stopping on validation ROC-AUC, learning rates 1e-5,
   3e-5 and 1e-4, the run with the best validation PR-AUC kept with its
   best-epoch weights (or the pretrained weights if no epoch beats them). The old
   hand-written fine-tuning loop for tabpfn 6.0.6 was removed.
