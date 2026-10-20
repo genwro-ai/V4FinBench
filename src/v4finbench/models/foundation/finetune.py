@@ -58,6 +58,7 @@ def make_finetuner(
             early_stopping=True,
             patience=config["patience"],
             max_data_size=config["batch_rows"],
+            n_estimators_finetune=1,
             eval_metric=config["eval_metric"],
             save_interval=0,
             random_state=random_state,

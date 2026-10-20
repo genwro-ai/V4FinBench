@@ -25,7 +25,8 @@ preprint code, and why. Full definitions are in
   prototype-undersampled training data (no oversampling:
   duplicated positives would sit in both the context and query of a batch),
   fine-tuning batches of 10k rows (TabPFN's default 50k ran out of the A100's
-  40 GB), up to 10 epochs with early stopping on validation ROC-AUC, learning rates 1e-5,
+  40 GB; TabICL packs one ensemble variant per batch instead of two for the
+  same reason), up to 10 epochs with early stopping on validation ROC-AUC, learning rates 1e-5,
   3e-5 and 1e-4, the run with the best validation PR-AUC kept with its
   best-epoch weights (or the pretrained weights if no epoch beats them). The old
   hand-written fine-tuning loop for tabpfn 6.0.6 was removed.
@@ -197,8 +198,12 @@ the label files, so they cannot go stale. Test years start in 2013 because the
   2015; McDermott et al., 2024, who recommend PR-AUC for this kind of top-heavy
   intervention setting). The decision threshold is then chosen by validation F1.
   Both ROC-AUC and PR-AUC are reported.
-- RealMLP and TabM select their best epoch on validation cross-entropy, without
-  label smoothing, as the RealMLP authors recommend for AUC-type targets.
+- RealMLP selects its best epoch on validation cross-entropy, without label
+  smoothing, as its authors recommend for AUC-type targets. TabM early-stops on
+  validation ROC-AUC: on cross-entropy it stopped within a few epochs at the
+  long horizons, where validation positives are few, and fell below logistic
+  regression (main-track stratified ROC-AUC 0.70/0.63 at h=4/5, versus
+  0.78/0.71 on ROC-AUC).
 - All models use a single seed (42), as the earlier MLP baseline did.
 - Each (model, horizon, test year) writes its own score and metrics files
   (with timings and hardware); finished cells are skipped, so jobs can run in

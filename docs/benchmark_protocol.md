@@ -140,8 +140,9 @@ For every split, each model with a search space in
 models train up to 5,000 trees with early stopping on the validation years
 (patience 200). Trials are compared on validation PR-AUC, which emphasizes the
 top of the risk ranking where an early-warning list is acted on (Saito and
-Rehmsmeier, 2015; McDermott et al., 2024). RealMLP and TabM select their best
-epoch on validation cross-entropy, without label smoothing. The decision
+Rehmsmeier, 2015; McDermott et al., 2024). RealMLP selects its best epoch on
+validation cross-entropy, without label smoothing; TabM early-stops on
+validation ROC-AUC. The decision
 threshold of the selected model maximizes validation F1.
 
 ## Foundation models

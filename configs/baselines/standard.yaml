@@ -49,5 +49,5 @@ models:
 
   tabm:
     params:
-      val_metric_name: cross_entropy
+      val_metric_name: 1-auc_ovr
       batch_size: 1024
