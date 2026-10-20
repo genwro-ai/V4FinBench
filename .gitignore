@@ -222,6 +222,7 @@ data/raw/*
 data/processed/*
 data/temporal_splits/*
 data/cache/
+logs/
 results/generated/*
 economic-data/
 financial-distress-foundational-models/

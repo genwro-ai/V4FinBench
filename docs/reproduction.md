@@ -63,6 +63,28 @@ validation PR-AUC and saves that run's best-epoch weights next to its results.
 uv run python scripts/finetune_foundation.py --estimator tabpfn --sampling none
 ```
 
+## Athena (Slurm)
+
+Stage the raw data and weights once under `$SCRATCH/V4FinBench-assets`
+(`company_years.parquet`, `tabpfn/tabpfn-v3.5-20260909.safetensors`, and the
+TabICL checkpoint in a Hugging Face cache under `hf/`). `slurm/athena_env.sh`
+points the libraries at them in offline mode. In an interactive GPU allocation,
+from the checkout:
+
+```bash
+bash slurm/setup.sh
+```
+
+This installs the environment, builds labels and task files (including
+`cells_main.txt` for the main track) and checks that both models load. Then
+submit one array per model, one element per task:
+
+```bash
+RUNNER=baseline CONFIG=configs/foundation/in_context.yaml MODEL=tabpfn_full \
+  sbatch --array=0-14 slurm/task.sbatch
+RUNNER=finetune ESTIMATOR=tabpfn SAMPLING=none sbatch --array=0-14 slurm/task.sbatch
+```
+
 ## Outputs and evaluation
 
 `run_baselines.py` writes one pair of files per model and split under
